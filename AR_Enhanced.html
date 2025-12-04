@@ -96,7 +96,6 @@
     color:#fff;cursor:pointer;font-size:14px;
     min-width:110px;text-align:center;transition:all 0.2s;
   }
-  #startBtn{background:#2ea043}
   #placeBtn{background:#0ea5e9;display:none}
   #captureBtn{background:#f59e0b;display:none}
   .fab:active{transform:scale(0.95)}
@@ -179,6 +178,9 @@
   .modal-thumb img{width:100%;height:100%;object-fit:cover}
   .modal-thumb.active{border-color:#4fc3ff;box-shadow:0 0 0 2px rgba(79,195,255,.5) inset}
   .modal-buttons{display:flex;gap:12px;margin-top:20px;justify-content:flex-end}
+  
+  /* ===== AR 시작 버튼 (자동 숨김) ===== */
+  #arButtonContainer{position:fixed;top:-9999px;left:-9999px;opacity:0;pointer-events:none}
 </style>
 </head>
 <body>
@@ -230,7 +232,6 @@
 
 <!-- FAB 버튼들 -->
 <div id="fabContainer">
-  <button id="startBtn" class="fab">🚀 AR 시작</button>
   <button id="placeBtn" class="fab">📍 배치하기</button>
   <button id="captureBtn" class="fab">📸 캡처</button>
 </div>
@@ -302,6 +303,9 @@
     </div>
   </div>
 </div>
+
+<!-- AR 버튼 컨테이너 (숨김) -->
+<div id="arButtonContainer"></div>
 
 <script type="module">
 import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
@@ -382,14 +386,13 @@ function createScreenMaterial(texture) {
   });
 }
 
-// 전면 사진 재질 (베젤 위에 오버레이)
+// 전면 사진 재질 (베젤 위에 오버레이) - 수정: 더 선명하게
 function createFrontMaterial(texture) {
-  return new THREE.MeshStandardMaterial({
+  return new THREE.MeshBasicMaterial({
     map: texture,
     transparent: true,
-    opacity: 0.95,
-    roughness: 0.7,
-    metalness: 0.0,
+    opacity: 1.0, // 완전 불투명으로 변경
+    side: THREE.DoubleSide,
   });
 }
 
@@ -467,13 +470,13 @@ function createWallModel() {
   screen.position.set(0, totalH/2, totalD/2 + 0.0025);
   group.add(screen);
   
-  // 전면 사진 오버레이 (옵션)
+  // 전면 사진 오버레이 (옵션) - 수정: 더 앞쪽에 배치
   if (currentFrontTexture) {
     const frontOverlay = new THREE.Mesh(
-      new THREE.PlaneGeometry(totalW, totalH),
+      new THREE.PlaneGeometry(totalW * 0.98, totalH * 0.98), // 살짝 작게
       createFrontMaterial(currentFrontTexture)
     );
-    frontOverlay.position.set(0, totalH/2, totalD/2 + 0.003);
+    frontOverlay.position.set(0, totalH/2, totalD/2 + 0.006); // 더 앞으로
     group.add(frontOverlay);
     group.userData.frontOverlay = frontOverlay;
   }
@@ -567,13 +570,13 @@ function createTotemModel() {
   screen.position.set(0, baseH + displayH * 0.55, displayD/2 + 0.0025);
   group.add(screen);
   
-  // 전면 사진 오버레이
+  // 전면 사진 오버레이 - 수정: 더 앞쪽에 배치
   if (currentFrontTexture) {
     const frontOverlay = new THREE.Mesh(
-      new THREE.PlaneGeometry(displayW, displayH),
+      new THREE.PlaneGeometry(displayW * 0.98, displayH * 0.98), // 살짝 작게
       createFrontMaterial(currentFrontTexture)
     );
-    frontOverlay.position.set(0, baseH + displayH/2, displayD/2 + 0.003);
+    frontOverlay.position.set(0, baseH + displayH/2, displayD/2 + 0.006); // 더 앞으로
     group.add(frontOverlay);
     group.userData.frontOverlay = frontOverlay;
   }
@@ -609,7 +612,6 @@ let lastHitPose = null;
 
 renderer.xr.addEventListener('sessionstart', () => {
   console.log('✅ XR 세션 시작');
-  $('startBtn').style.display = 'none';
   $('placeBtn').style.display = 'block';
   $('captureBtn').style.display = 'block';
   $('reticle').style.display = 'block';
@@ -618,7 +620,6 @@ renderer.xr.addEventListener('sessionstart', () => {
 
 renderer.xr.addEventListener('sessionend', () => {
   console.log('❌ XR 세션 종료');
-  $('startBtn').style.display = 'block';
   $('placeBtn').style.display = 'none';
   $('captureBtn').style.display = 'none';
   $('reticle').style.display = 'none';
@@ -1044,26 +1045,21 @@ $('fileInput').onchange = (e) => {
   }
 };
 
-// AR 시작
-let arButton = null;
-$('startBtn').onclick = () => {
-  if (!('xr' in navigator)) {
-    alert('❌ 이 브라우저는 WebXR을 지원하지 않습니다.\n\n✅ AR Core를 지원하는 Android 기기에서\nChrome 브라우저를 사용해주세요.');
-    return;
-  }
-  
-  if (!arButton) {
-    arButton = ARButton.createButton(renderer, {
-      requiredFeatures: ['hit-test'],
-      optionalFeatures: ['dom-overlay'],
-      domOverlay: { root: document.body }
-    });
-    arButton.style.display = 'none';
-    document.body.appendChild(arButton);
-  }
-  
-  arButton.click();
-};
+// AR 시작 - 자동으로 실행
+const arButton = ARButton.createButton(renderer, {
+  requiredFeatures: ['hit-test'],
+  optionalFeatures: ['dom-overlay'],
+  domOverlay: { root: document.body }
+});
+$('arButtonContainer').appendChild(arButton);
+
+// 페이지 로드 후 자동으로 AR 시작
+window.addEventListener('load', () => {
+  setTimeout(() => {
+    console.log('🚀 AR 자동 시작');
+    arButton.click();
+  }, 500);
+});
 
 // 배치 모드
 $('placeBtn').onclick = () => {
@@ -1083,7 +1079,7 @@ $('placeBtn').onclick = () => {
   }
 };
 
-// 캡처
+// 캡처 - JPG로 저장
 $('captureBtn').onclick = async () => {
   if (placedObjects.length === 0) {
     showToast('⚠️ 배치된 모델이 없습니다');
@@ -1099,12 +1095,13 @@ $('captureBtn').onclick = async () => {
   await new Promise(requestAnimationFrame);
   
   try {
-    const dataUrl = renderer.domElement.toDataURL('image/png');
+    // PNG 대신 JPG로 캡처
+    const dataUrl = renderer.domElement.toDataURL('image/jpeg', 0.95); // JPG, 품질 95%
     
     const a = document.createElement('a');
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
     a.href = dataUrl;
-    a.download = `DID_AR_${timestamp}.png`;
+    a.download = `DID_AR_${timestamp}.jpg`; // JPG 확장자
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -1120,7 +1117,7 @@ $('captureBtn').onclick = async () => {
     if (navigator.canShare) {
       const response = await fetch(dataUrl);
       const blob = await response.blob();
-      const file = new File([blob], `DID_AR_${timestamp}.png`, { type: 'image/png' });
+      const file = new File([blob], `DID_AR_${timestamp}.jpg`, { type: 'image/jpeg' }); // JPG
       
       if (navigator.canShare({ files: [file] })) {
         try {
@@ -1134,7 +1131,7 @@ $('captureBtn').onclick = async () => {
       }
     }
     
-    showToast('📸 이미지가 저장되었습니다!');
+    showToast('📸 JPG 이미지가 저장되었습니다!');
   } catch (err) {
     showToast('❌ 캡처 실패: ' + err.message);
   } finally {
@@ -1264,7 +1261,8 @@ window.addEventListener('resize', () => {
 });
 
 console.log('✅ DID AR Enhanced (제품 사양 반영) 초기화 완료');
-console.log('📐 실측 기반 모델 / 🎨 색상 선택 / 🖼️ 전면 사진 / 📺 화면 이미지');
+console.log('📐 실측 기반 모델 / 🎨 색상 선택 / 🖼️ 전면 사진 / 📺 화면 이미지 / 📸 JPG 캡처');
+console.log('🚀 AR 자동 시작됨');
 </script>
 </body>
 </html>
