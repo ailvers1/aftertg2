@@ -259,9 +259,10 @@
     <!-- 회전 -->
     <div class="editRow">
       <span class="editLabel">회전</span>
-      <div style="display:flex;gap:8px">
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn" id="rotLeft">⟲ 15°</button>
         <button class="btn" id="rotRight">⟳ 15°</button>
+        <button class="btn" id="rotate90" style="display:none;width:100%">🔄 90° (세로/가로)</button>
       </div>
     </div>
     
@@ -734,6 +735,13 @@ function selectObject(obj) {
   $('editPanel').style.display = 'flex';
   updateEditPanel();
   
+  // 벽걸이형인 경우 90도 회전 버튼 표시
+  if (obj.userData.type === 'wall') {
+    $('rotate90').style.display = 'block';
+  } else {
+    $('rotate90').style.display = 'none';
+  }
+  
   console.log('✅ 객체 선택됨 - 편집 패널 표시');
   
   // 선택 표시 (화면 메시는 제외)
@@ -771,6 +779,13 @@ function updateEditPanel() {
   if (!selectedObject) return;
   const currentHeight = selectedObject.userData.currentHeightOffset || 0;
   $('objHeight').textContent = currentHeight + 'mm';
+  
+  // 벽걸이형인 경우 90도 회전 버튼 표시
+  if (selectedObject.userData.type === 'wall') {
+    $('rotate90').style.display = 'block';
+  } else {
+    $('rotate90').style.display = 'none';
+  }
 }
 
 /* ==================== 객체 조작 ==================== */
@@ -1255,6 +1270,23 @@ setupMoveButton('padRight', 1, 0);
 
 $('rotLeft').onclick = () => rotateObject(-rotStep);
 $('rotRight').onclick = () => rotateObject(rotStep);
+
+// 90도 회전 (벽걸이형 세로/가로 전환)
+$('rotate90').onclick = () => {
+  if (!selectedObject) return;
+  if (selectedObject.userData.type !== 'wall') return;
+  
+  // Z축 기준 90도 회전
+  selectedObject.rotation.z += Math.PI / 2;
+  
+  // 360도 회전 시 0으로 리셋
+  if (Math.abs(selectedObject.rotation.z) >= Math.PI * 2) {
+    selectedObject.rotation.z = 0;
+  }
+  
+  const isPortrait = Math.abs(selectedObject.rotation.z % Math.PI) > 0.1;
+  showToast(isPortrait ? '📱 세로 모드' : '🖼️ 가로 모드');
+};
 
 $('heightUp').onclick = () => adjustHeight(50);
 $('heightDown').onclick = () => adjustHeight(-50);
