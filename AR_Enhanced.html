@@ -216,10 +216,6 @@
   </div>
   <div id="topRow3">
     <div class="group">
-      📐 높이 <input id="heightRange" type="range" min="-1000" max="2500" value="0"/>
-      <span id="heightVal">0mm</span>
-    </div>
-    <div class="group">
       <input type="checkbox" id="showBezel" checked/>
       <label for="showBezel">베젤 표시</label>
     </div>
@@ -699,25 +695,37 @@ function placeModel(pose) {
   
   model.position.set(
     position.x,
-    position.y + (heightOffset / 1000),
+    position.y,
     position.z
   );
   model.quaternion.copy(quaternion);
   
   model.userData.groundY = position.y;
-  model.userData.currentHeightOffset = heightOffset;
+  model.userData.currentHeightOffset = 0; // 초기값 0
   
   scene.add(model);
   placedObjects.push(model);
   
-  showToast('✓ 모델이 배치되었습니다');
-  selectObject(model);
+  showToast('✓ 모델이 배치되었습니다\n탭하여 선택 후 조작하세요');
+  
+  // 배치 후 자동 선택
+  setTimeout(() => {
+    selectObject(model);
+  }, 300);
+  
   isPlacementMode = false;
   $('placeBtn').classList.remove('active');
+  $('placeBtn').textContent = '📍 배치하기';
 }
 
 /* ==================== 객체 선택/해제 ==================== */
 function selectObject(obj) {
+  if (selectedObject === obj) {
+    // 같은 객체 다시 클릭하면 선택 해제
+    deselectObject();
+    return;
+  }
+  
   if (selectedObject) {
     deselectObject();
   }
@@ -726,6 +734,8 @@ function selectObject(obj) {
   $('editPanel').style.display = 'flex';
   updateEditPanel();
   
+  console.log('✅ 객체 선택됨 - 편집 패널 표시');
+  
   // 선택 표시 (화면 메시는 제외)
   obj.traverse((child) => {
     if (child.isMesh && child.material && child !== obj.userData.screenMesh && child !== obj.userData.frontOverlay) {
@@ -733,7 +743,7 @@ function selectObject(obj) {
       child.userData.originalEmissiveIntensity = child.material.emissiveIntensity || 0;
       if (child.material.emissive) {
         child.material.emissive.setHex(0x4fc3ff);
-        child.material.emissiveIntensity = 0.15;
+        child.material.emissiveIntensity = 0.2;
       }
     }
   });
@@ -1045,11 +1055,7 @@ $('scaleRange').oninput = () => {
   $('scaleVal').textContent = val + '%';
 };
 
-// 높이 오프셋
-$('heightRange').oninput = () => {
-  heightOffset = parseInt($('heightRange').value);
-  $('heightVal').textContent = heightOffset + 'mm';
-};
+// 높이 오프셋은 편집 패널에서만 조절 (상단 제거)
 
 // 베젤 표시 토글
 $('showBezel').onchange = () => {
@@ -1290,7 +1296,10 @@ renderer.domElement.addEventListener('touchend', (e) => {
 });
 
 function trySelectObject(clientX, clientY) {
-  if (placedObjects.length === 0) return;
+  if (placedObjects.length === 0) {
+    console.log('⚠️ 배치된 객체 없음');
+    return;
+  }
   
   const x = (clientX / window.innerWidth) * 2 - 1;
   const y = -(clientY / window.innerHeight) * 2 + 1;
@@ -1306,6 +1315,8 @@ function trySelectObject(clientX, clientY) {
   
   const intersects = raycaster.intersectObjects(meshes, false);
   
+  console.log(`🎯 Raycast: ${intersects.length}개 충돌 감지`);
+  
   if (intersects.length > 0) {
     let target = intersects[0].object;
     
@@ -1314,14 +1325,12 @@ function trySelectObject(clientX, clientY) {
     }
     
     if (target) {
-      if (selectedObject === target) {
-        deselectObject();
-      } else {
-        selectObject(target);
-        showToast('✓ 모델이 선택되었습니다');
-      }
+      console.log('✅ 객체 찾음:', target.userData.type);
+      selectObject(target);
+      showToast('✓ 모델이 선택되었습니다');
     }
   } else {
+    console.log('❌ 객체 선택 안됨 - 빈 공간 클릭');
     deselectObject();
   }
 }
