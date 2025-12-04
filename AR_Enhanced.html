@@ -15,9 +15,9 @@
     padding:10px 12px;display:flex;flex-direction:column;gap:8px;
     box-shadow:0 2px 10px rgba(0,0,0,.3);
   }
-  #topRow1{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
-  #topRow2{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
-  #topRow3{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+  #topRow1{display:flex;gap:6px;flex-wrap:wrap;align-items:center;width:100%}
+  #topRow2{display:flex;gap:6px;flex-wrap:wrap;align-items:center;width:100%}
+  #topRow3{display:flex;gap:6px;flex-wrap:wrap;align-items:center;width:100%}
   
   .btn{
     color:#fff;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3);
@@ -29,9 +29,16 @@
   .btn.green{background:rgba(46,160,67,.65);border-color:rgba(46,160,67,1)}
   .btn.red{background:rgba(220,38,38,.65);border-color:rgba(220,38,38,1)}
   
-  .group{display:flex;align-items:center;gap:6px;color:#fff;font-size:13px}
-  input[type="range"]{width:120px;height:6px}
+  .group{display:flex;align-items:center;gap:6px;color:#fff;font-size:13px;white-space:nowrap}
+  input[type="range"]{width:100px;height:6px}
   input[type="checkbox"]{width:16px;height:16px}
+  
+  /* 모바일 최적화 */
+  @media (max-width: 480px) {
+    input[type="range"]{width:80px}
+    .btn{padding:6px 10px;font-size:12px}
+    .divider{display:none}
+  }
   
   .divider{color:#666;margin:0 4px}
   
