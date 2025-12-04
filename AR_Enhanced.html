@@ -96,6 +96,7 @@
     color:#fff;cursor:pointer;font-size:14px;
     min-width:110px;text-align:center;transition:all 0.2s;
   }
+  #startBtn{background:#2ea043}
   #placeBtn{background:#0ea5e9;display:none}
   #captureBtn{background:#f59e0b;display:none}
   .fab:active{transform:scale(0.95)}
@@ -179,8 +180,12 @@
   .modal-thumb.active{border-color:#4fc3ff;box-shadow:0 0 0 2px rgba(79,195,255,.5) inset}
   .modal-buttons{display:flex;gap:12px;margin-top:20px;justify-content:flex-end}
   
-  /* ===== AR 시작 버튼 (자동 숨김) ===== */
-  #arButtonContainer{position:fixed;top:-9999px;left:-9999px;opacity:0;pointer-events:none}
+  /* ===== WebXR 기본 버튼 숨기기 (하단 중앙) ===== */
+  #VRButton{display:none !important}
+  [style*="position: absolute"][style*="bottom: 20px"]{display:none !important}
+  
+  /* AR 시작 버튼 */
+  #startBtn{background:#2ea043}
 </style>
 </head>
 <body>
@@ -232,6 +237,7 @@
 
 <!-- FAB 버튼들 -->
 <div id="fabContainer">
+  <button id="startBtn" class="fab">🚀 AR 시작</button>
   <button id="placeBtn" class="fab">📍 배치하기</button>
   <button id="captureBtn" class="fab">📸 캡처</button>
 </div>
@@ -304,8 +310,7 @@
   </div>
 </div>
 
-<!-- AR 버튼 컨테이너 (숨김) -->
-<div id="arButtonContainer"></div>
+
 
 <script type="module">
 import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
@@ -612,6 +617,7 @@ let lastHitPose = null;
 
 renderer.xr.addEventListener('sessionstart', () => {
   console.log('✅ XR 세션 시작');
+  $('startBtn').style.display = 'none';
   $('placeBtn').style.display = 'block';
   $('captureBtn').style.display = 'block';
   $('reticle').style.display = 'block';
@@ -620,6 +626,7 @@ renderer.xr.addEventListener('sessionstart', () => {
 
 renderer.xr.addEventListener('sessionend', () => {
   console.log('❌ XR 세션 종료');
+  $('startBtn').style.display = 'block';
   $('placeBtn').style.display = 'none';
   $('captureBtn').style.display = 'none';
   $('reticle').style.display = 'none';
@@ -1045,21 +1052,29 @@ $('fileInput').onchange = (e) => {
   }
 };
 
-// AR 시작 - 자동으로 실행
-const arButton = ARButton.createButton(renderer, {
-  requiredFeatures: ['hit-test'],
-  optionalFeatures: ['dom-overlay'],
-  domOverlay: { root: document.body }
-});
-$('arButtonContainer').appendChild(arButton);
-
-// 페이지 로드 후 자동으로 AR 시작
-window.addEventListener('load', () => {
-  setTimeout(() => {
-    console.log('🚀 AR 자동 시작');
-    arButton.click();
-  }, 500);
-});
+// AR 시작 버튼
+let arButton = null;
+$('startBtn').onclick = () => {
+  if (!('xr' in navigator)) {
+    alert('❌ 이 브라우저는 WebXR을 지원하지 않습니다.\n\n✅ AR Core를 지원하는 Android 기기에서\nChrome 브라우저를 사용해주세요.');
+    return;
+  }
+  
+  if (!arButton) {
+    arButton = ARButton.createButton(renderer, {
+      requiredFeatures: ['hit-test'],
+      optionalFeatures: ['dom-overlay'],
+      domOverlay: { root: document.body }
+    });
+    // WebXR 기본 버튼 숨기기
+    arButton.style.display = 'none';
+    arButton.style.position = 'fixed';
+    arButton.style.bottom = '-9999px';
+    document.body.appendChild(arButton);
+  }
+  
+  arButton.click();
+};
 
 // 배치 모드
 $('placeBtn').onclick = () => {
@@ -1262,7 +1277,6 @@ window.addEventListener('resize', () => {
 
 console.log('✅ DID AR Enhanced (제품 사양 반영) 초기화 완료');
 console.log('📐 실측 기반 모델 / 🎨 색상 선택 / 🖼️ 전면 사진 / 📺 화면 이미지 / 📸 JPG 캡처');
-console.log('🚀 AR 자동 시작됨');
 </script>
 </body>
 </html>
