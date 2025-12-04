@@ -114,7 +114,7 @@
   .editRow{display:flex;gap:6px;align-items:center;justify-content:space-between}
   .editLabel{color:#fff;font-size:13px;min-width:60px}
   
-  /* 방향 패드 */
+  /* 방향 패드 - 십자형 */
   #dirPad{
     display:grid;grid-template-columns:repeat(3,38px);gap:4px;
     justify-self:center;
@@ -125,7 +125,10 @@
     color:#fff;font-size:16px;cursor:pointer;transition:all 0.15s;
   }
   #dirPad button:active{background:rgba(255,255,255,.3);transform:scale(0.95)}
-  #dirPad .center{grid-column:2;grid-row:2;font-size:10px;pointer-events:none;opacity:0.5}
+  #padUp{grid-column:2;grid-row:1}
+  #padLeft{grid-column:1;grid-row:2}
+  #padDown{grid-column:2;grid-row:2}
+  #padRight{grid-column:3;grid-row:2}
   
   /* ===== 토스트 ===== */
   #toast{
@@ -252,9 +255,8 @@
       <div id="dirPad">
         <button id="padUp">▲</button>
         <button id="padLeft">◄</button>
-        <div class="center">이동</div>
-        <button id="padRight">►</button>
         <button id="padDown">▼</button>
+        <button id="padRight">►</button>
       </div>
     </div>
     
@@ -366,6 +368,8 @@ function createBodyMaterial(color) {
     color: color,
     roughness: 0.5,
     metalness: 0.4,
+    emissive: 0x000000,
+    emissiveIntensity: 0,
   });
 }
 
@@ -377,6 +381,8 @@ function createBezelMaterial(color) {
     color: bezelColor,
     roughness: 0.6,
     metalness: 0.3,
+    emissive: 0x000000,
+    emissiveIntensity: 0,
   });
 }
 
@@ -720,14 +726,14 @@ function selectObject(obj) {
   $('editPanel').style.display = 'flex';
   updateEditPanel();
   
-  // 선택 표시
+  // 선택 표시 (화면 메시는 제외)
   obj.traverse((child) => {
-    if (child.isMesh && child.material) {
+    if (child.isMesh && child.material && child !== obj.userData.screenMesh && child !== obj.userData.frontOverlay) {
       child.userData.originalEmissive = child.material.emissive?.getHex() || 0;
       child.userData.originalEmissiveIntensity = child.material.emissiveIntensity || 0;
       if (child.material.emissive) {
-        child.material.emissive.setHex(0x2080ff);
-        child.material.emissiveIntensity = 0.3;
+        child.material.emissive.setHex(0x4fc3ff);
+        child.material.emissiveIntensity = 0.15;
       }
     }
   });
@@ -738,9 +744,11 @@ function deselectObject() {
     selectedObject.traverse((child) => {
       if (child.isMesh && child.userData.originalEmissive !== undefined) {
         if (child.material.emissive) {
-          child.material.emissive.setHex(child.userData.originalEmissive);
+          child.material.emissive.setHex(child.userData.originalEmissive || 0x000000);
           child.material.emissiveIntensity = child.userData.originalEmissiveIntensity || 0;
         }
+        delete child.userData.originalEmissive;
+        delete child.userData.originalEmissiveIntensity;
       }
     });
   }
@@ -953,14 +961,39 @@ $('applyFrontImage').onclick = () => {
 
 $('frontFileInput').onchange = (e) => {
   const files = Array.from(e.target.files || []);
+  if (files.length === 0) return;
+  
+  let loadedCount = 0;
+  const totalFiles = files.length;
+  
   files.forEach(file => {
     const url = URL.createObjectURL(file);
-    frontImageUrls.push(url);
+    
+    // 이미지 미리 로드
+    const img = new Image();
+    img.onload = () => {
+      loadedCount++;
+      frontImageUrls.push(url);
+      
+      if (loadedCount === totalFiles) {
+        renderFrontImageGrid();
+        showToast(`📷 ${totalFiles}개의 전면 사진이 추가되었습니다`);
+      }
+    };
+    img.onerror = () => {
+      loadedCount++;
+      console.error('전면 이미지 로드 실패:', file.name);
+      
+      if (loadedCount === totalFiles) {
+        renderFrontImageGrid();
+        showToast(`⚠️ 일부 이미지 로드 실패`);
+      }
+    };
+    img.src = url;
   });
-  renderFrontImageGrid();
-  if (files.length > 0) {
-    showToast(`📷 ${files.length}개의 전면 사진이 추가되었습니다`);
-  }
+  
+  // 파일 입력 초기화
+  e.target.value = '';
 };
 
 initFrontImageModal();
@@ -1043,13 +1076,37 @@ $('clearAll').onclick = () => {
 // 화면 이미지 업로드
 $('fileInput').onchange = (e) => {
   const files = Array.from(e.target.files || []);
+  if (files.length === 0) return;
+  
+  let loadedCount = 0;
+  const totalFiles = files.length;
+  
   files.forEach((file, index) => {
     const url = URL.createObjectURL(file);
-    addScreenThumbnail(url, index === 0 && $('thumbs').children.length === 0);
+    
+    // 이미지 미리 로드하여 검은 화면 방지
+    const img = new Image();
+    img.onload = () => {
+      loadedCount++;
+      addScreenThumbnail(url, index === 0 && $('thumbs').children.length === 3); // 기본 3개 제외
+      
+      if (loadedCount === totalFiles) {
+        showToast(`📷 ${totalFiles}개의 화면 이미지가 추가되었습니다`);
+      }
+    };
+    img.onerror = () => {
+      loadedCount++;
+      console.error('이미지 로드 실패:', file.name);
+      
+      if (loadedCount === totalFiles) {
+        showToast(`⚠️ 일부 이미지 로드 실패`);
+      }
+    };
+    img.src = url;
   });
-  if (files.length > 0) {
-    showToast(`📷 ${files.length}개의 화면 이미지가 추가되었습니다`);
-  }
+  
+  // 파일 입력 초기화
+  e.target.value = '';
 };
 
 // AR 시작 버튼
