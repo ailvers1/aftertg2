@@ -1088,7 +1088,7 @@ $('fileInput').onchange = (e) => {
     const img = new Image();
     img.onload = () => {
       loadedCount++;
-      addScreenThumbnail(url, index === 0 && $('thumbs').children.length === 3); // 기본 3개 제외
+      addScreenThumbnail(url, false); // 항상 추가만 하고 자동 선택 안함
       
       if (loadedCount === totalFiles) {
         showToast(`📷 ${totalFiles}개의 화면 이미지가 추가되었습니다`);
@@ -1164,7 +1164,8 @@ $('captureBtn').onclick = async () => {
     if (el) el.style.visibility = 'hidden';
   });
   
-  await new Promise(requestAnimationFrame);
+  // 여러 프레임 대기하여 렌더링 완료 보장
+  await new Promise(resolve => setTimeout(resolve, 100));
   
   try {
     // PNG 대신 JPG로 캡처
