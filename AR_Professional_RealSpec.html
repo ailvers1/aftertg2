@@ -107,9 +107,6 @@
   #startBtn{background:#2ea043}
   #placeBtn{background:#0ea5e9;display:none}
   #captureBtn{background:#f59e0b;display:none}
-  #dupBtn{background:#8b5cf6;display:none}
-  #saveBtn{background:#06b6d4;display:none}
-  #loadBtn{background:#ec4899;display:none}
   .fab:active{transform:scale(0.96)}
   .fab:hover{transform:translateY(-2px);box-shadow:0 6px 22px rgba(0,0,0,.7)}
   
@@ -268,10 +265,7 @@
 <div id="fabContainer">
   <button id="startBtn" class="fab">🚀 AR 시작</button>
   <button id="placeBtn" class="fab">📍 배치하기</button>
-  <button id="captureBtn" class="fab">📸 캡처</button>
-  <button id="dupBtn" class="fab">📋 복제</button>
-  <button id="saveBtn" class="fab">💾 저장</button>
-  <button id="loadBtn" class="fab">📂 불러오기</button>
+  <button id="captureBtn" class="fab">📸 스크린샷</button>
 </div>
 
 <!-- 편집 패널 -->
@@ -499,12 +493,17 @@ function makeStandModel(spec){
   base.userData.isBody=true;
   group.add(base);
   
-  // 몸통
+  // 몸통 (기둥)
   const bodyH=H-baseH;
-  const body = new THREE.Mesh(new THREE.BoxGeometry(W,bodyH,D/4), bodyMat);
+  const body = new THREE.Mesh(new THREE.BoxGeometry(W*0.15,bodyH,D*0.15), bodyMat);
   body.position.y=baseH+bodyH/2;
   body.userData.isBody=true;
   group.add(body);
+  
+  // 스크린 위치 계산 (상단에 배치)
+  const screenW=spec.screenW/1000-BZ*2-0.01;
+  const screenH=spec.screenH/1000-BZ*2-0.01;
+  const screenCenterY = H - (screenH/2) - 0.15; // 전체 높이에서 스크린 절반만큼 빼고, 여유 공간 15cm
   
   // 베젤 (광택 있는 프레임)
   if(showBezel){
@@ -517,28 +516,26 @@ function makeStandModel(spec){
     });
     const bW=spec.screenW/1000-BZ*2, bH=spec.screenH/1000-BZ*2;
     const bezel = new THREE.Mesh(new THREE.BoxGeometry(bW,bH,0.002), bezelMat);
-    bezel.position.set(0, baseH+(spec.screenH/2000), D/8+0.001);
+    bezel.position.set(0, screenCenterY, D/8+0.001);
     group.add(bezel);
   }
   
   // 스크린
-  const screenW=spec.screenW/1000-BZ*2-0.01;
-  const screenH=spec.screenH/1000-BZ*2-0.01;
   const screen = new THREE.Mesh(new THREE.PlaneGeometry(screenW, screenH), newScreenMat());
-  screen.position.set(0, baseH+(spec.screenH/2000), D/8+0.003);
+  screen.position.set(0, screenCenterY, D/8+0.003);
   screen.userData.isScreen=true;
   group.add(screen);
   group.userData.screenMesh=screen;
   
   // 유리 보호막 (광택 효과)
   const glass = new THREE.Mesh(new THREE.PlaneGeometry(screenW, screenH), newGlassMat());
-  glass.position.set(0, baseH+(spec.screenH/2000), D/8+0.004);
+  glass.position.set(0, screenCenterY, D/8+0.004);
   group.add(glass);
   
   // 전면 사진
   if(currentFrontTexture){
     const front = new THREE.Mesh(new THREE.PlaneGeometry(screenW*0.98, screenH*0.98), newFrontMat());
-    front.position.set(0, baseH+(spec.screenH/2000), D/8+0.006);
+    front.position.set(0, screenCenterY, D/8+0.006);
     group.add(front);
     group.userData.frontMesh=front;
   }
@@ -697,20 +694,25 @@ $('fileInput').onchange=(e)=>{
   const files = Array.from(e.target.files||[]);
   if(!files.length) return;
   
+  showToast('이미지 로드 중...');
+  
   let loaded = 0;
   files.forEach((f,i)=>{
     const url=URL.createObjectURL(f);
     const img = new Image();
     img.onload = ()=>{
-      loaded++;
-      addScreenThumbnail(url, i===0 && loaded===1);
-      if(loaded === files.length){
-        showToast(`이미지 ${files.length}개 추가됨`);
-      }
+      // 비동기 처리로 UI 블로킹 방지
+      requestAnimationFrame(()=>{
+        loaded++;
+        addScreenThumbnail(url, i===0 && loaded===1);
+        if(loaded === files.length){
+          showToast(`✓ 이미지 ${files.length}개 추가됨`);
+        }
+      });
     };
     img.onerror = ()=>{
       loaded++;
-      showToast('이미지 로드 실패');
+      showToast('❌ 이미지 로드 실패');
     };
     img.src = url;
   });
@@ -729,28 +731,33 @@ frontUploadInput.onchange=(e)=>{
   const files = Array.from(e.target.files||[]);
   if(!files.length) return;
   
+  showToast('전면 사진 로드 중...');
+  
   let loaded = 0;
   files.forEach(f=>{
     const url=URL.createObjectURL(f);
     const img = new Image();
     img.onload = ()=>{
-      loaded++;
-      const div=document.createElement('div'); div.className='frontThumb';
-      div.dataset.url=url;
-      const imgEl=document.createElement('img'); imgEl.src=url; div.appendChild(imgEl);
-      div.onclick=()=>{
-        document.querySelectorAll('.frontThumb').forEach(t=>t.classList.remove('selected'));
-        div.classList.add('selected');
-        tempFrontSelection=url;
-      };
-      frontImageGrid.appendChild(div);
-      if(loaded === files.length){
-        showToast(`전면 사진 ${files.length}개 추가됨`);
-      }
+      // 비동기 처리로 UI 블로킹 방지
+      requestAnimationFrame(()=>{
+        loaded++;
+        const div=document.createElement('div'); div.className='frontThumb';
+        div.dataset.url=url;
+        const imgEl=document.createElement('img'); imgEl.src=url; div.appendChild(imgEl);
+        div.onclick=()=>{
+          document.querySelectorAll('.frontThumb').forEach(t=>t.classList.remove('selected'));
+          div.classList.add('selected');
+          tempFrontSelection=url;
+        };
+        frontImageGrid.appendChild(div);
+        if(loaded === files.length){
+          showToast(`✓ 전면 사진 ${files.length}개 추가됨`);
+        }
+      });
     };
     img.onerror = ()=>{
       loaded++;
-      showToast('이미지 로드 실패');
+      showToast('❌ 이미지 로드 실패');
     };
     img.src = url;
   });
@@ -787,15 +794,18 @@ $('videoInput').onchange=(e)=>{
   const vid=document.createElement('video');
   vid.src=url; vid.loop=true; vid.muted=true; vid.playsInline=true;
   vid.onloadeddata = ()=>{
-    vid.play().catch(()=>{});
-    const vidTex=new THREE.VideoTexture(vid);
-    vidTex.colorSpace=THREE.SRGBColorSpace;
-    currentVideoTexture=vidTex;
-    currentScreenTexture=vidTex;
-    showToast('동영상 업로드 완료 (재생 중)');
+    // 비동기 처리로 UI 블로킹 방지
+    requestAnimationFrame(()=>{
+      vid.play().catch(()=>{});
+      const vidTex=new THREE.VideoTexture(vid);
+      vidTex.colorSpace=THREE.SRGBColorSpace;
+      currentVideoTexture=vidTex;
+      currentScreenTexture=vidTex;
+      showToast('✓ 동영상 업로드 완료 (재생 중)');
+    });
   };
   vid.onerror = ()=>{
-    showToast('동영상 로드 실패');
+    showToast('❌ 동영상 로드 실패');
   };
   e.target.value='';
 };
@@ -819,9 +829,6 @@ renderer.setAnimationLoop((_,frame)=>{
         $('startBtn').style.display='block';
         $('placeBtn').style.display='none';
         $('captureBtn').style.display='none';
-        $('dupBtn').style.display='none';
-        $('saveBtn').style.display='none';
-        $('loadBtn').style.display='none';
         $('reticle').style.opacity='0';
         $('statusBar').style.display='none';
       });
@@ -1077,18 +1084,18 @@ function timestamp(){
 async function captureScene(){
   if(!placed.length){showToast('배치 후 캡처 가능'); return;}
   
-  // UI 숨기기 전에 캔버스 준비
+  showToast('스크린샷 촬영 중...');
+  
+  // UI 숨기기 (그러나 AR 렌더링은 계속)
   hideUI(true);
-  await new Promise(resolve=>setTimeout(resolve,150));
+  
+  // 비동기 렌더링 완료 대기
+  await new Promise(resolve=>requestAnimationFrame(resolve));
+  await new Promise(resolve=>requestAnimationFrame(resolve));
   
   try{
-    // WebGL 캔버스에서 직접 캡처 (AR 카메라 배경 포함)
+    // WebGL 캔버스에서 직접 캡처
     const canvas = renderer.domElement;
-    
-    // AR 세션 중이면 GL 컨텍스트를 강제로 업데이트
-    renderer.render(scene, camera);
-    
-    // 캔버스 데이터를 JPG로 변환
     const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
     
     // 다운로드
@@ -1104,95 +1111,17 @@ async function captureScene(){
     img.src=dataUrl;
     $('capStrip').prepend(img);
     
-    // 공유 기능 (지원 시)
-    if(navigator.canShare){
-      const res=await fetch(dataUrl); 
-      const blob=await res.blob();
-      const file=new File([blob],'DID_AR_'+timestamp()+'.jpg',{type:'image/jpeg'});
-      try{
-        await navigator.share({files:[file],title:'DID AR Capture'});
-      }catch(_){
-        // 공유 취소 또는 실패
-      }
-    }
-    
-    showToast('✓ 이미지 저장됨 (AR 배경 포함)');
+    showToast('✓ 스크린샷 저장됨!');
   }catch(e){
     console.error('Capture error:', e);
-    showToast('캡처 실패: '+e.message);
+    showToast('❌ 캡처 실패: '+e.message);
   }finally{
+    // UI 다시 표시 (즉시)
     hideUI(false);
   }
 }
 
-/* ========== 복제 ========== */
-function duplicateSelected(){
-  if(!selectedObj){showToast('모델을 선택해주세요'); return;}
-  const clone=selectedObj.clone(true);
-  clone.position.x+=0.5;
-  clone.userData._planeY=selectedObj.userData._planeY;
-  scene.add(clone);
-  placed.push(clone);
-  selectedObj=clone;
-  showEditPanel();
-  showToast('모델 복제됨');
-}
-
-/* ========== 저장/불러오기 ========== */
-function savePlacement(){
-  if(!placed.length){showToast('배치된 모델이 없습니다'); return;}
-  const data={
-    version:'1.0',
-    timestamp:timestamp(),
-    models:placed.map(o=>({
-      category:o.userData.type,
-      model:o.userData.spec.model,
-      position:{x:o.position.x,y:o.position.y,z:o.position.z},
-      rotation:{x:o.rotation.x,y:o.rotation.y,z:o.rotation.z},
-      planeY:o.userData._planeY
-    }))
-  };
-  const json=JSON.stringify(data,null,2);
-  const blob=new Blob([json],{type:'application/json'});
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement('a');
-  a.href=url; a.download='DID_AR_'+timestamp()+'.json';
-  document.body.appendChild(a); a.click(); a.remove();
-  URL.revokeObjectURL(url);
-  showToast('배치 정보 저장됨 (JSON)');
-}
-
-function loadPlacement(){
-  const input=document.createElement('input');
-  input.type='file'; input.accept='application/json';
-  input.onchange=(e)=>{
-    const file=e.target.files[0];
-    if(!file) return;
-    const reader=new FileReader();
-    reader.onload=(ev)=>{
-      try{
-        const data=JSON.parse(ev.target.result);
-        placed.forEach(o=>scene.remove(o));
-        placed.length=0; selectedObj=null; hideEditPanel();
-        
-        data.models.forEach(m=>{
-          currentCategory=m.category;
-          currentModel=m.model;
-          const model=createModel();
-          if(!model) return;
-          model.position.set(m.position.x,m.position.y,m.position.z);
-          model.rotation.set(m.rotation.x,m.rotation.y,m.rotation.z);
-          model.userData._planeY=m.planeY;
-          scene.add(model);
-          placed.push(model);
-        });
-        showToast('배치 정보 불러옴 ('+data.models.length+'개)');
-      }catch(err){showToast('불러오기 실패: '+err.message);}
-    };
-    reader.readAsText(file);
-  };
-  input.click();
-}
+/* ========== 복제/저장/불러오기 기능 제거됨 ========== */
 
 /* ========== 토스트 ========== */
 const toast=$('toast');
@@ -1204,7 +1133,7 @@ function showToast(msg){
 
 /* ========== AR 시작 ========== */
 const startBtn=$('startBtn'), placeBtn=$('placeBtn'), captureBtn=$('captureBtn');
-const dupBtn=$('dupBtn'), saveBtn=$('saveBtn'), loadBtn=$('loadBtn');
+// 불필요한 버튼 제거됨
 let arBtn=null;
 
 startBtn.onclick=()=>{
@@ -1227,9 +1156,6 @@ startBtn.onclick=()=>{
       startBtn.style.display='none';
       placeBtn.style.display='block';
       captureBtn.style.display='block';
-      dupBtn.style.display='block';
-      saveBtn.style.display='block';
-      loadBtn.style.display='block';
       showToast('AR 세션 시작됨');
     }
   },500);
@@ -1237,9 +1163,6 @@ startBtn.onclick=()=>{
 
 placeBtn.onclick=placeModel;
 captureBtn.onclick=captureScene;
-dupBtn.onclick=duplicateSelected;
-saveBtn.onclick=savePlacement;
-loadBtn.onclick=loadPlacement;
 
 /* ========== 리사이즈 ========== */
 window.addEventListener('resize',()=>{
