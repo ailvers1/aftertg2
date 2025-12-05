@@ -681,8 +681,26 @@ function addScreenThumbnail(url, active=false){
   div.onclick=()=>{
     document.querySelectorAll('.thumb').forEach(t=>t.classList.remove('active'));
     div.classList.add('active');
-    const tex=loader.load(url); tex.colorSpace=THREE.SRGBColorSpace;
-    currentScreenTexture=tex;
+    
+    // 텍스처 로드를 비동기로 처리하여 AR 세션 중단 방지
+    requestAnimationFrame(()=>{
+      const tex=loader.load(url, 
+        // onLoad 콜백
+        ()=>{
+          console.log('Texture loaded:', url);
+        },
+        // onProgress 콜백
+        undefined,
+        // onError 콜백
+        (err)=>{
+          console.error('Texture load error:', err);
+          showToast('❌ 텍스처 로드 실패');
+        }
+      );
+      tex.colorSpace=THREE.SRGBColorSpace;
+      currentScreenTexture=tex;
+      showToast('✓ 화면 이미지 적용됨');
+    });
   };
   $('thumbs').appendChild(div);
   if(active) div.click();
@@ -1085,7 +1103,7 @@ function timestamp(){
 async function captureScene(){
   if(!placed.length){showToast('배치 후 캡처 가능'); return;}
   
-  showToast('스크린샷 촬영 중...');
+  showToast('📸 스크린샷 촬영 중...');
   
   // UI 숨기기 (그러나 AR 렌더링은 계속)
   hideUI(true);
@@ -1099,20 +1117,51 @@ async function captureScene(){
     const canvas = renderer.domElement;
     const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
     
-    // 다운로드
-    const a=document.createElement('a');
-    a.href=dataUrl; 
-    a.download='DID_AR_'+timestamp()+'.jpg';
-    document.body.appendChild(a); 
-    a.click(); 
-    a.remove();
+    // Blob 생성 (공유/저장용)
+    const res = await fetch(dataUrl);
+    const blob = await res.blob();
+    const filename = 'DID_AR_'+timestamp()+'.jpg';
+    const file = new File([blob], filename, {type:'image/jpeg'});
     
-    // 썸네일 추가
+    // 1. 모바일 공유 API 시도 (갤러리에 저장 가능)
+    let shared = false;
+    if(navigator.canShare && navigator.canShare({files:[file]})){
+      try{
+        await navigator.share({
+          files:[file],
+          title:'📸 DID AR 스크린샷',
+          text:'AR로 미리본 DID 배치 화면입니다.'
+        });
+        shared = true;
+        showToast('✓ 사진 공유됨! (갤러리 저장 가능)');
+      }catch(shareErr){
+        if(shareErr.name !== 'AbortError'){
+          console.log('Share cancelled or failed:', shareErr);
+        }
+      }
+    }
+    
+    // 2. 공유가 안되면 다운로드
+    if(!shared){
+      const a=document.createElement('a');
+      a.href=dataUrl; 
+      a.download=filename;
+      document.body.appendChild(a); 
+      a.click(); 
+      a.remove();
+      showToast('✓ 스크린샷 다운로드됨!');
+    }
+    
+    // 3. 썸네일 추가 (미리보기용)
     const img=document.createElement('img'); 
     img.src=dataUrl;
+    img.onclick=()=>{
+      // 썸네일 클릭 시 크게 보기
+      const viewer = window.open('', '_blank');
+      viewer.document.write(`<img src="${dataUrl}" style="max-width:100%;height:auto;">`);
+    };
     $('capStrip').prepend(img);
     
-    showToast('✓ 스크린샷 저장됨!');
   }catch(e){
     console.error('Capture error:', e);
     showToast('❌ 캡처 실패: '+e.message);
