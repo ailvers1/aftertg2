@@ -493,9 +493,9 @@ function makeStandModel(spec){
   base.userData.isBody=true;
   group.add(base);
   
-  // 몸통 (기둥)
+  // 몸통 (원래 형태 유지)
   const bodyH=H-baseH;
-  const body = new THREE.Mesh(new THREE.BoxGeometry(W*0.15,bodyH,D*0.15), bodyMat);
+  const body = new THREE.Mesh(new THREE.BoxGeometry(W,bodyH,D/4), bodyMat);
   body.position.y=baseH+bodyH/2;
   body.userData.isBody=true;
   group.add(body);
@@ -503,7 +503,8 @@ function makeStandModel(spec){
   // 스크린 위치 계산 (상단에 배치)
   const screenW=spec.screenW/1000-BZ*2-0.01;
   const screenH=spec.screenH/1000-BZ*2-0.01;
-  const screenCenterY = H - (screenH/2) - 0.15; // 전체 높이에서 스크린 절반만큼 빼고, 여유 공간 15cm
+  // 전체 높이(H)에서 스크린 높이의 절반을 빼서 상단에 배치
+  const screenCenterY = H - (screenH/2) - 0.1; // 상단에서 10cm 아래
   
   // 베젤 (광택 있는 프레임)
   if(showBezel){
