@@ -83,14 +83,24 @@
   /* ===== 리티클(배치 가이드) ===== */
   #reticle{
     position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);
-    width:120px;height:120px;border:3px solid #4fc3ff;border-radius:50%;
+    width:180px;height:180px;border:4px solid #4fc3ff;border-radius:50%;
     pointer-events:none;z-index:15;opacity:0;transition:opacity 0.3s;
-    box-shadow:0 0 30px rgba(79,195,255,.7) inset, 0 0 20px rgba(79,195,255,.5);
+    box-shadow:0 0 40px rgba(79,195,255,.8) inset, 0 0 30px rgba(79,195,255,.7);
+    animation:reticlePulse 2s ease-in-out infinite;
+  }
+  @keyframes reticlePulse{
+    0%, 100%{transform:translate(-50%,-50%) scale(1);opacity:1;}
+    50%{transform:translate(-50%,-50%) scale(1.05);opacity:0.8;}
   }
   #reticle::before{
     content:'';position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
-    width:15px;height:15px;background:#4fc3ff;border-radius:50%;
-    box-shadow:0 0 12px rgba(79,195,255,.9);
+    width:20px;height:20px;background:#4fc3ff;border-radius:50%;
+    box-shadow:0 0 15px rgba(79,195,255,1);
+  }
+  #reticle::after{
+    content:'배치 위치';position:absolute;left:50%;bottom:-35px;transform:translateX(-50%);
+    color:#4fc3ff;font-size:13px;font-weight:600;white-space:nowrap;
+    text-shadow:0 2px 8px rgba(0,0,0,.8);
   }
   
   /* ===== FAB 버튼들 ===== */
@@ -839,7 +849,12 @@ renderer.setAnimationLoop((_,frame)=>{
     const session=renderer.xr.getSession();
     if(!requested && session){
       session.requestReferenceSpace('viewer').then(view=>{
-        session.requestHitTestSource({space:view}).then(src=>hitSource=src);
+        // Hit-test 설정 (더 먼 거리까지 허용)
+        session.requestHitTestSource({
+          space:view,
+          // offsetRay를 사용하여 더 먼 거리 허용
+          entityTypes: ['plane', 'point', 'mesh']
+        }).then(src=>hitSource=src);
       });
       session.requestHitTestSourceForTransientInput({profile:'generic-touchscreen'})
         .then(src=>transientSource=src).catch(()=>{});
@@ -1105,17 +1120,31 @@ async function captureScene(){
   
   showToast('📸 스크린샷 촬영 중...');
   
-  // UI 숨기기 (그러나 AR 렌더링은 계속)
+  // UI 숨기기
   hideUI(true);
   
-  // 비동기 렌더링 완료 대기
+  // 충분한 렌더링 시간 확보 (3프레임)
+  await new Promise(resolve=>requestAnimationFrame(resolve));
   await new Promise(resolve=>requestAnimationFrame(resolve));
   await new Promise(resolve=>requestAnimationFrame(resolve));
   
   try{
-    // WebGL 캔버스에서 직접 캡처
+    // 명시적으로 렌더링 강제 실행
+    renderer.render(scene, camera);
+    
+    // WebGL 캔버스에서 캡처
     const canvas = renderer.domElement;
+    const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
+    
+    // GL 버퍼 읽기 전에 플러시
+    if(gl) gl.flush();
+    
     const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
+    
+    // 데이터 유효성 검사
+    if(!dataUrl || dataUrl.length < 100){
+      throw new Error('캡처 데이터가 비어있습니다');
+    }
     
     // Blob 생성 (공유/저장용)
     const res = await fetch(dataUrl);
