@@ -340,7 +340,7 @@ document.body.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera();
-scene.add(new THREE.HemisphereLight(0xffffff,0x444444,1.0));
+scene.add(new THREE.HemisphereLight(0xffffff,0x888888,0.8));
 const dir = new THREE.DirectionalLight(0xffffff,1.0);
 dir.position.set(0.5,1,0.3);
 scene.add(dir);
@@ -397,10 +397,10 @@ function newScreenMat(){
   return new THREE.MeshStandardMaterial({
     map:currentScreenTexture, 
     roughness:0.15,  // 유리 같은 매끄러운 표면
-    metalness:0.1,   // 약간의 반사
-    emissive:0x111111, 
-    emissiveIntensity:0.4,
-    envMapIntensity:0.8  // 환경 반사
+    metalness:0.05,  // 최소화된 반사
+    emissive:0x000000,  // 푸른빛 제거
+    emissiveIntensity:0.0,
+    envMapIntensity:0.5  // 환경 반사 감소
   });
 }
 function newFrontMat(){
@@ -412,15 +412,15 @@ function newFrontMat(){
 // 유리 반사 레이어 재질
 function newGlassMat(){
   return new THREE.MeshPhysicalMaterial({
-    color:0xffffff,
+    color:0xf5f5f5,  // 약간 따뜻한 화이트 (푸른빛 제거)
     metalness:0.0,
-    roughness:0.05,  // 매우 매끄러운 유리
+    roughness:0.08,  // 약간 더 거칠게
     transparent:true,
-    opacity:0.12,    // 약한 투명도
-    reflectivity:0.9, // 높은 반사율
-    clearcoat:1.0,   // 최대 코팅
-    clearcoatRoughness:0.05,
-    envMapIntensity:1.5
+    opacity:0.08,    // 투명도 감소
+    reflectivity:0.7, // 반사율 감소
+    clearcoat:0.8,   // 코팅 감소
+    clearcoatRoughness:0.1,
+    envMapIntensity:1.0  // 환경 반사 감소
   });
 }
 
