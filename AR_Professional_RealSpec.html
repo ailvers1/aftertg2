@@ -650,9 +650,25 @@ addScreenThumbnail('https://picsum.photos/800/450?random=1',true);
 addScreenThumbnail('https://picsum.photos/800/450?random=2',false);
 
 $('fileInput').onchange=(e)=>{
-  Array.from(e.target.files||[]).forEach((f,i)=>{
+  const files = Array.from(e.target.files||[]);
+  if(!files.length) return;
+  
+  let loaded = 0;
+  files.forEach((f,i)=>{
     const url=URL.createObjectURL(f);
-    addScreenThumbnail(url,i===0);
+    const img = new Image();
+    img.onload = ()=>{
+      loaded++;
+      addScreenThumbnail(url, i===0 && loaded===1);
+      if(loaded === files.length){
+        showToast(`이미지 ${files.length}개 추가됨`);
+      }
+    };
+    img.onerror = ()=>{
+      loaded++;
+      showToast('이미지 로드 실패');
+    };
+    img.src = url;
   });
   e.target.value='';
 };
@@ -666,17 +682,33 @@ $('frontCancel').onclick=()=>{frontModal.style.display='none';};
 $('frontUpload').onclick=()=>{frontUploadInput.click();};
 
 frontUploadInput.onchange=(e)=>{
-  Array.from(e.target.files||[]).forEach(f=>{
+  const files = Array.from(e.target.files||[]);
+  if(!files.length) return;
+  
+  let loaded = 0;
+  files.forEach(f=>{
     const url=URL.createObjectURL(f);
-    const div=document.createElement('div'); div.className='frontThumb';
-    div.dataset.url=url;
-    const img=document.createElement('img'); img.src=url; div.appendChild(img);
-    div.onclick=()=>{
-      document.querySelectorAll('.frontThumb').forEach(t=>t.classList.remove('selected'));
-      div.classList.add('selected');
-      tempFrontSelection=url;
+    const img = new Image();
+    img.onload = ()=>{
+      loaded++;
+      const div=document.createElement('div'); div.className='frontThumb';
+      div.dataset.url=url;
+      const imgEl=document.createElement('img'); imgEl.src=url; div.appendChild(imgEl);
+      div.onclick=()=>{
+        document.querySelectorAll('.frontThumb').forEach(t=>t.classList.remove('selected'));
+        div.classList.add('selected');
+        tempFrontSelection=url;
+      };
+      frontImageGrid.appendChild(div);
+      if(loaded === files.length){
+        showToast(`전면 사진 ${files.length}개 추가됨`);
+      }
     };
-    frontImageGrid.appendChild(div);
+    img.onerror = ()=>{
+      loaded++;
+      showToast('이미지 로드 실패');
+    };
+    img.src = url;
   });
   e.target.value='';
 };
@@ -706,15 +738,21 @@ $('btnVideo').onclick=()=>{$('videoInput').click();};
 $('videoInput').onchange=(e)=>{
   const f=e.target.files[0];
   if(!f) return;
+  showToast('동영상 로드 중...');
   const url=URL.createObjectURL(f);
   const vid=document.createElement('video');
   vid.src=url; vid.loop=true; vid.muted=true; vid.playsInline=true;
-  vid.play().catch(()=>{});
-  const vidTex=new THREE.VideoTexture(vid);
-  vidTex.colorSpace=THREE.SRGBColorSpace;
-  currentVideoTexture=vidTex;
-  currentScreenTexture=vidTex;
-  showToast('동영상 업로드 완료 (재생 중)');
+  vid.onloadeddata = ()=>{
+    vid.play().catch(()=>{});
+    const vidTex=new THREE.VideoTexture(vid);
+    vidTex.colorSpace=THREE.SRGBColorSpace;
+    currentVideoTexture=vidTex;
+    currentScreenTexture=vidTex;
+    showToast('동영상 업로드 완료 (재생 중)');
+  };
+  vid.onerror = ()=>{
+    showToast('동영상 로드 실패');
+  };
   e.target.value='';
 };
 
@@ -994,25 +1032,53 @@ function timestamp(){
 }
 async function captureScene(){
   if(!placed.length){showToast('배치 후 캡처 가능'); return;}
+  
+  // UI 숨기기 전에 캔버스 준비
   hideUI(true);
-  await new Promise(resolve=>setTimeout(resolve,100));
+  await new Promise(resolve=>setTimeout(resolve,150));
+  
   try{
-    const dataUrl=renderer.domElement.toDataURL('image/jpeg',0.95);
-    const a=document.createElement('a');
-    a.href=dataUrl; a.download='DID_AR_'+timestamp()+'.jpg';
-    document.body.appendChild(a); a.click(); a.remove();
+    // WebGL 캔버스에서 직접 캡처 (AR 카메라 배경 포함)
+    const canvas = renderer.domElement;
     
-    const img=document.createElement('img'); img.src=dataUrl;
+    // AR 세션 중이면 GL 컨텍스트를 강제로 업데이트
+    renderer.render(scene, camera);
+    
+    // 캔버스 데이터를 JPG로 변환
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
+    
+    // 다운로드
+    const a=document.createElement('a');
+    a.href=dataUrl; 
+    a.download='DID_AR_'+timestamp()+'.jpg';
+    document.body.appendChild(a); 
+    a.click(); 
+    a.remove();
+    
+    // 썸네일 추가
+    const img=document.createElement('img'); 
+    img.src=dataUrl;
     $('capStrip').prepend(img);
     
+    // 공유 기능 (지원 시)
     if(navigator.canShare){
-      const res=await fetch(dataUrl); const blob=await res.blob();
+      const res=await fetch(dataUrl); 
+      const blob=await res.blob();
       const file=new File([blob],'DID_AR_'+timestamp()+'.jpg',{type:'image/jpeg'});
-      try{await navigator.share({files:[file],title:'DID AR Capture'});}catch(_){}
+      try{
+        await navigator.share({files:[file],title:'DID AR Capture'});
+      }catch(_){
+        // 공유 취소 또는 실패
+      }
     }
-    showToast('이미지 저장됨 (JPG)');
-  }catch(e){showToast('캡처 실패: '+e.message);}
-  finally{hideUI(false);}
+    
+    showToast('✓ 이미지 저장됨 (AR 배경 포함)');
+  }catch(e){
+    console.error('Capture error:', e);
+    showToast('캡처 실패: '+e.message);
+  }finally{
+    hideUI(false);
+  }
 }
 
 /* ========== 복제 ========== */
