@@ -401,13 +401,32 @@ let bodyMat = new THREE.MeshStandardMaterial({
 
 function newScreenMat(){
   return new THREE.MeshStandardMaterial({
-    map:currentScreenTexture, roughness:0.4, metalness:0.0,
-    emissive:0x111111, emissiveIntensity:0.4
+    map:currentScreenTexture, 
+    roughness:0.15,  // 유리 같은 매끄러운 표면
+    metalness:0.1,   // 약간의 반사
+    emissive:0x111111, 
+    emissiveIntensity:0.4,
+    envMapIntensity:0.8  // 환경 반사
   });
 }
 function newFrontMat(){
   return new THREE.MeshBasicMaterial({
     map:currentFrontTexture, transparent:true, opacity:1.0
+  });
+}
+
+// 유리 반사 레이어 재질
+function newGlassMat(){
+  return new THREE.MeshPhysicalMaterial({
+    color:0xffffff,
+    metalness:0.0,
+    roughness:0.05,  // 매우 매끄러운 유리
+    transparent:true,
+    opacity:0.12,    // 약한 투명도
+    reflectivity:0.9, // 높은 반사율
+    clearcoat:1.0,   // 최대 코팅
+    clearcoatRoughness:0.05,
+    envMapIntensity:1.5
   });
 }
 
@@ -426,11 +445,14 @@ function makeWallModel(spec){
   body.userData.isBody=true;
   group.add(body);
   
-  // 베젤 (약간 밝게)
+  // 베젤 (광택 있는 프레임)
   if(showBezel){
     const bezelMat = new THREE.MeshStandardMaterial({
-      color:bodyColor==='black'?0x222222:0xffffff,
-      roughness:0.5, metalness:0.4
+      color:bodyColor==='black'?0x2a2a2a:0xfafafa,
+      roughness:0.25,  // 플라스틱/메탈 프레임 광택
+      metalness:0.6,   // 메탈릭 재질
+      clearcoat:0.3,   // 코팅 효과
+      clearcoatRoughness:0.4
     });
     const bezelGeo = new THREE.BoxGeometry(W-BZ*2, H-BZ*2, 0.002);
     const bezel = new THREE.Mesh(bezelGeo, bezelMat);
@@ -445,6 +467,11 @@ function makeWallModel(spec){
   screen.userData.isScreen=true;
   group.add(screen);
   group.userData.screenMesh=screen;
+  
+  // 유리 보호막 (광택 효과)
+  const glass = new THREE.Mesh(new THREE.PlaneGeometry(screenW, screenH), newGlassMat());
+  glass.position.set(0,H/2,D/2+0.004);
+  group.add(glass);
   
   // 전면 사진 (있으면)
   if(currentFrontTexture){
@@ -479,11 +506,14 @@ function makeStandModel(spec){
   body.userData.isBody=true;
   group.add(body);
   
-  // 베젤
+  // 베젤 (광택 있는 프레임)
   if(showBezel){
     const bezelMat = new THREE.MeshStandardMaterial({
-      color:bodyColor==='black'?0x222222:0xffffff,
-      roughness:0.5, metalness:0.4
+      color:bodyColor==='black'?0x2a2a2a:0xfafafa,
+      roughness:0.25,  // 플라스틱/메탈 프레임 광택
+      metalness:0.6,   // 메탈릭 재질
+      clearcoat:0.3,   // 코팅 효과
+      clearcoatRoughness:0.4
     });
     const bW=spec.screenW/1000-BZ*2, bH=spec.screenH/1000-BZ*2;
     const bezel = new THREE.Mesh(new THREE.BoxGeometry(bW,bH,0.002), bezelMat);
@@ -499,6 +529,11 @@ function makeStandModel(spec){
   screen.userData.isScreen=true;
   group.add(screen);
   group.userData.screenMesh=screen;
+  
+  // 유리 보호막 (광택 효과)
+  const glass = new THREE.Mesh(new THREE.PlaneGeometry(screenW, screenH), newGlassMat());
+  glass.position.set(0, baseH+(spec.screenH/2000), D/8+0.004);
+  group.add(glass);
   
   // 전면 사진
   if(currentFrontTexture){
@@ -525,10 +560,14 @@ function makeVideowallModel(spec){
   body.userData.isBody=true;
   group.add(body);
   
-  // 베젤 (매우 좁음)
+  // 베젤 (매우 좁음, 고광택 메탈)
   if(showBezel && BZ>0.001){
     const bezelMat = new THREE.MeshStandardMaterial({
-      color:0x1a1a1a, roughness:0.6, metalness:0.5
+      color:0x2a2a2a, 
+      roughness:0.2,   // 비디오월은 더 매끄러운 베젤
+      metalness:0.8,   // 높은 메탈릭
+      clearcoat:0.5,   // 강한 코팅 효과
+      clearcoatRoughness:0.3
     });
     const bezelGeo = new THREE.BoxGeometry(W-BZ*2, H-BZ*2, 0.001);
     const bezel = new THREE.Mesh(bezelGeo, bezelMat);
@@ -543,6 +582,11 @@ function makeVideowallModel(spec){
   screen.userData.isScreen=true;
   group.add(screen);
   group.userData.screenMesh=screen;
+  
+  // 유리 보호막 (광택 효과)
+  const glass = new THREE.Mesh(new THREE.PlaneGeometry(screenW, screenH), newGlassMat());
+  glass.position.set(0,H/2,D/2+0.0025);
+  group.add(glass);
   
   // 전면 사진
   if(currentFrontTexture){
