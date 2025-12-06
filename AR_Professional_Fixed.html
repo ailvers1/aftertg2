@@ -1218,26 +1218,55 @@ function rebuildSelected(){
   selectedObj=newModel;
 }
 
-// 이동
-function moveObject(dx,dz){
+// 이동 (카메라 기준)
+function moveObject(forward, right){
   if(!selectedObj) return;
-  const py=selectedObj.userData._planeY??selectedObj.position.y;
-  selectedObj.position.x+=dx;
-  selectedObj.position.z+=dz;
-  selectedObj.position.y=py+(heightOffset/1000);
+  
+  // 카메라 방향 벡터 구하기
+  const cameraDirection = new THREE.Vector3();
+  camera.getWorldDirection(cameraDirection);
+  cameraDirection.y = 0; // 수평 방향만
+  cameraDirection.normalize();
+  
+  // 카메라 오른쪽 방향 벡터
+  const cameraRight = new THREE.Vector3();
+  cameraRight.crossVectors(cameraDirection, new THREE.Vector3(0, 1, 0));
+  cameraRight.normalize();
+  
+  // 이동 벡터 계산
+  const moveVector = new THREE.Vector3();
+  moveVector.addScaledVector(cameraDirection, forward); // 앞뒤
+  moveVector.addScaledVector(cameraRight, right); // 좌우
+  
+  // 위치 업데이트
+  selectedObj.position.x += moveVector.x;
+  selectedObj.position.z += moveVector.z;
+  
+  // Y축은 평면 기준으로 유지
+  if(selectedObj.userData._isWallMounted){
+    // 벽걸이는 원래 위치 유지
+  }else{
+    const py = selectedObj.userData._planePos?.y ?? selectedObj.position.y;
+    selectedObj.position.y = py + (heightOffset/1000);
+  }
 }
-function setupMoveButton(btn,dx,dz){
+
+function setupMoveButton(btn, forward, right){
   let timer=null;
-  const start=()=>{moveObject(dx,dz); timer=setInterval(()=>moveObject(dx,dz),100);};
+  const start=()=>{moveObject(forward, right); timer=setInterval(()=>moveObject(forward, right),100);};
   const stop=()=>{if(timer){clearInterval(timer); timer=null;}};
   btn.addEventListener('touchstart',start,{passive:true});
   btn.addEventListener('mousedown',start);
   ['touchend','touchcancel','mouseup','mouseleave'].forEach(e=>btn.addEventListener(e,stop));
 }
-setupMoveButton($('padUp'),0,-0.05);
-setupMoveButton($('padDown'),0,0.05);
-setupMoveButton($('padLeft'),-0.05,0);
-setupMoveButton($('padRight'),0.05,0);
+
+// 방향키 설정 (카메라 기준)
+// forward: 양수=앞으로, 음수=뒤로
+// right: 양수=오른쪽, 음수=왼쪽
+setupMoveButton($('padUp'), 0.05, 0);      // 위: 앞으로
+setupMoveButton($('padDown'), -0.05, 0);   // 아래: 뒤로
+setupMoveButton($('padLeft'), 0, -0.05);   // 왼쪽: 왼쪽
+setupMoveButton($('padRight'), 0, 0.05);   // 오른쪽: 오른쪽
 
 // 회전
 $('rotLeft').onclick=()=>{
