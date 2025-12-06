@@ -1,0 +1,399 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no"/>
+<title>DID AR Professional</title>
+<style>
+  html,body{margin:0;height:100%;overflow:hidden;background:#1a1a2e;font-family:system-ui,-apple-system,sans-serif}
+  
+  /* 시작 화면 */
+  #startScreen{
+    position:fixed;inset:0;z-index:100;
+    background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;
+  }
+  #startScreen.hidden{display:none}
+  #startLogo{font-size:48px;margin-bottom:20px;animation:float 3s ease-in-out infinite}
+  @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+  #startTitle{color:#fff;font-size:28px;font-weight:700;margin-bottom:12px;text-align:center}
+  #startDesc{color:rgba(255,255,255,0.9);font-size:16px;margin-bottom:30px;text-align:center;max-width:400px;line-height:1.6}
+  #startBtnBig{
+    background:#fff;color:#667eea;border:none;border-radius:50px;
+    padding:18px 50px;font-size:18px;font-weight:700;cursor:pointer;
+    box-shadow:0 8px 20px rgba(0,0,0,0.3);transition:all 0.3s;
+  }
+  #startBtnBig:hover{transform:translateY(-3px);box-shadow:0 12px 30px rgba(0,0,0,0.4)}
+  
+  /* Three.js canvas */
+  canvas{position:fixed;inset:0;touch-action:none;opacity:0;transition:opacity 0.3s}
+  canvas.ar-active{opacity:1}
+  
+  /* FAB 버튼 - 방향 대응 */
+  #fabContainer{
+    position:fixed;z-index:22;display:none;flex-direction:column;gap:11px;
+    transition:all 0.3s ease;
+  }
+  /* 세로 모드: 오른쪽 하단 */
+  body.portrait #fabContainer{
+    right:14px;bottom:100px;
+  }
+  /* 가로 모드: 오른쪽 중앙 */
+  body.landscape #fabContainer{
+    right:14px;top:50%;transform:translateY(-50%);
+  }
+  
+  .fab{padding:13px 18px;border-radius:11px;font-weight:600;border:none;
+    box-shadow:0 4px 16px rgba(0,0,0,.6);color:#fff;cursor:pointer;font-size:14px;min-width:105px;text-align:center}
+  #placeBtn{background:#0ea5e9}
+  #captureBtn{background:#f59e0b}
+  
+  /* 토스트 - 방향 대응 */
+  #toast{
+    position:fixed;left:50%;transform:translateX(-50%);z-index:40;
+    background:rgba(0,0,0,.9);color:#fff;padding:12px 18px;border-radius:9px;
+    display:none;font-size:14px;box-shadow:0 4px 12px rgba(0,0,0,.6);white-space:nowrap;
+    transition:all 0.3s ease;
+  }
+  body.portrait #toast{bottom:150px}
+  body.landscape #toast{bottom:80px}
+  
+  /* 리티클 */
+  #reticle{
+    position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);
+    width:180px;height:180px;border:4px solid #4fc3ff;border-radius:50%;
+    pointer-events:none;z-index:15;opacity:0;transition:opacity 0.3s;
+    box-shadow:0 0 40px rgba(79,195,255,.8) inset,0 0 30px rgba(79,195,255,.7);
+    animation:pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse{0%,100%{transform:translate(-50%,-50%) scale(1)}50%{transform:translate(-50%,-50%) scale(1.05)}}
+  #reticle::after{
+    content:'배치 위치';position:absolute;left:50%;bottom:-35px;transform:translateX(-50%);
+    color:#4fc3ff;font-size:13px;font-weight:600;text-shadow:0 2px 8px rgba(0,0,0,.8);
+  }
+  
+  /* 방향 인디케이터 */
+  #orientationIndicator{
+    position:fixed;top:20px;left:20px;z-index:30;
+    background:rgba(0,0,0,0.7);color:#fff;padding:8px 14px;border-radius:8px;
+    font-size:12px;font-weight:600;display:none;
+    box-shadow:0 2px 8px rgba(0,0,0,0.6);
+  }
+  #orientationIndicator.show{display:block}
+</style>
+</head>
+<body class="portrait">
+
+<div id="startScreen">
+  <div id="startLogo">📱✨</div>
+  <div id="startTitle">DID AR Professional</div>
+  <div id="startDesc">증강현실로 삼성 DID 디스플레이를 실제 공간에 배치하고 체험해보세요<br><small style="opacity:0.8">💡 가로/세로 모드 자동 대응</small></div>
+  <button id="startBtnBig">🚀 AR 시작하기</button>
+</div>
+
+<div id="reticle"></div>
+
+<div id="fabContainer">
+  <button id="placeBtn" class="fab">📍 배치하기</button>
+  <button id="captureBtn" class="fab">📸 스크린샷</button>
+</div>
+
+<div id="toast"></div>
+<div id="orientationIndicator"></div>
+
+<script type="module">
+import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
+import { ARButton } from 'https://unpkg.com/three@0.160.0/examples/jsm/webxr/ARButton.js';
+
+const $=id=>document.getElementById(id);
+const startScreen=$('startScreen'), startBtnBig=$('startBtnBig');
+const placeBtn=$('placeBtn'), captureBtn=$('captureBtn');
+const toast=$('toast'), reticle=$('reticle');
+const orientationInd=$('orientationIndicator');
+
+// 현재 방향 추적
+let currentOrientation='portrait'; // 'portrait' or 'landscape'
+
+function showToast(msg){
+  toast.textContent=msg;
+  toast.style.display='block';
+  setTimeout(()=>toast.style.display='none',2500);
+}
+
+// 방향 감지 및 업데이트
+function updateOrientation(){
+  const w=window.innerWidth;
+  const h=window.innerHeight;
+  const isLandscape=w>h;
+  
+  const newOrientation=isLandscape?'landscape':'portrait';
+  
+  if(newOrientation!==currentOrientation){
+    currentOrientation=newOrientation;
+    document.body.className=currentOrientation;
+    
+    // AR 세션 중일 때만 표시
+    if(renderer && renderer.xr.isPresenting){
+      orientationInd.textContent=isLandscape?'📱 가로 모드 (16:9)':'📱 세로 모드 (9:16)';
+      orientationInd.classList.add('show');
+      setTimeout(()=>orientationInd.classList.remove('show'),2000);
+    }
+    
+    console.log(`Orientation changed to: ${currentOrientation} (${w}x${h})`);
+  }
+  
+  // 카메라 업데이트
+  if(camera){
+    camera.aspect=w/h;
+    camera.updateProjectionMatrix();
+  }
+  
+  // 렌더러 업데이트
+  if(renderer){
+    renderer.setSize(w,h);
+  }
+}
+
+// 초기 방향 설정
+updateOrientation();
+
+// 방향 변경 감지 (여러 이벤트 모니터링)
+window.addEventListener('resize',updateOrientation);
+window.addEventListener('orientationchange',()=>{
+  setTimeout(updateOrientation,100);
+});
+
+// Screen Orientation API 사용 가능시
+if(screen.orientation){
+  screen.orientation.addEventListener('change',()=>{
+    setTimeout(updateOrientation,100);
+  });
+}
+
+// Three.js 초기화 - alpha:false로 카메라 배경 보이도록
+let renderer,scene,camera,dir;
+try{
+  renderer=new THREE.WebGLRenderer({
+    antialias:true,
+    alpha:false, // 카메라 피드가 보이도록 false로 설정
+    preserveDrawingBuffer:true
+  });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+  renderer.setSize(window.innerWidth,window.innerHeight);
+  renderer.xr.enabled=true;
+  document.body.appendChild(renderer.domElement);
+  
+  scene=new THREE.Scene();
+  camera=new THREE.PerspectiveCamera(75,window.innerWidth/window.innerHeight,0.01,100);
+  
+  scene.add(new THREE.HemisphereLight(0xffffff,0x888888,1.2));
+  dir=new THREE.DirectionalLight(0xffffff,1.5);
+  dir.position.set(0.5,1,0.3);
+  scene.add(dir);
+  scene.add(new THREE.AmbientLight(0xffffff,0.5));
+}catch(e){
+  alert('초기화 실패: '+e.message);
+  throw e;
+}
+
+// 간단한 모델
+const placed=[];
+function createSimpleModel(){
+  const group=new THREE.Group();
+  const box=new THREE.Mesh(
+    new THREE.BoxGeometry(1,0.6,0.05),
+    new THREE.MeshStandardMaterial({color:0x111111,roughness:0.5,metalness:0.4})
+  );
+  box.position.y=0.3;
+  group.add(box);
+  
+  const screen=new THREE.Mesh(
+    new THREE.PlaneGeometry(0.95,0.55),
+    new THREE.MeshStandardMaterial({color:0x3333ff,emissive:0x111144,emissiveIntensity:0.5})
+  );
+  screen.position.set(0,0.3,0.026);
+  group.add(screen);
+  
+  return group;
+}
+
+// Hit-test
+let hitSource=null,lastHitPose=null;
+
+renderer.setAnimationLoop((_,frame)=>{
+  if(frame){
+    const ref=renderer.xr.getReferenceSpace();
+    const session=renderer.xr.getSession();
+    
+    if(!hitSource && session){
+      session.requestReferenceSpace('viewer').then(view=>{
+        session.requestHitTestSource({space:view}).then(src=>hitSource=src);
+      });
+      
+      session.addEventListener('end',()=>{
+        hitSource=null;
+        startScreen.classList.remove('hidden');
+        renderer.domElement.classList.remove('ar-active');
+        $('fabContainer').style.display='none';
+        reticle.style.opacity='0';
+        orientationInd.classList.remove('show');
+      });
+    }
+    
+    if(hitSource){
+      const hits=frame.getHitTestResults(hitSource);
+      if(hits.length){
+        lastHitPose=hits[0].getPose(ref);
+        reticle.style.opacity='1';
+      }else{
+        lastHitPose=null;
+        reticle.style.opacity='0';
+      }
+    }
+  }
+  renderer.render(scene,camera);
+});
+
+// 배치
+placeBtn.onclick=()=>{
+  if(!lastHitPose){showToast('바닥을 인식해주세요');return;}
+  
+  const model=createSimpleModel();
+  const m=new THREE.Matrix4().fromArray(lastHitPose.transform.matrix);
+  const pos=new THREE.Vector3().setFromMatrixPosition(m);
+  model.position.copy(pos);
+  
+  scene.add(model);
+  placed.push(model);
+  showToast(`✅ 모델 배치됨 (${placed.length}개)`);
+};
+
+// 스크린샷 - 방향에 따라 비율 조정
+captureBtn.onclick=async ()=>{
+  if(!placed.length){showToast('모델을 먼저 배치하세요');return;}
+  
+  const isLandscape=currentOrientation==='landscape';
+  showToast(isLandscape?'📸 가로 모드로 촬영중...':'📸 세로 모드로 촬영중...');
+  
+  await new Promise(r=>setTimeout(r,100));
+  
+  try{
+    const canvas=renderer.domElement;
+    const gl=canvas.getContext('webgl2')||canvas.getContext('webgl');
+    
+    renderer.render(scene,camera);
+    
+    const sourceW=canvas.width;
+    const sourceH=canvas.height;
+    
+    // 원본 픽셀 읽기
+    const pixels=new Uint8Array(sourceW*sourceH*4);
+    gl.readPixels(0,0,sourceW,sourceH,gl.RGBA,gl.UNSIGNED_BYTE,pixels);
+    
+    // 목표 비율 계산
+    let targetW,targetH;
+    if(isLandscape){
+      // 가로 모드: 16:9
+      const ratio=16/9;
+      if(sourceW/sourceH>ratio){
+        // 너비가 더 넓음 - 높이 기준
+        targetH=sourceH;
+        targetW=Math.round(sourceH*ratio);
+      }else{
+        // 높이가 더 큼 - 너비 기준
+        targetW=sourceW;
+        targetH=Math.round(sourceW/ratio);
+      }
+    }else{
+      // 세로 모드: 9:16
+      const ratio=9/16;
+      if(sourceW/sourceH>ratio){
+        // 너비가 더 넓음 - 높이 기준
+        targetH=sourceH;
+        targetW=Math.round(sourceH*ratio);
+      }else{
+        // 높이가 더 큼 - 너비 기준
+        targetW=sourceW;
+        targetH=Math.round(sourceW/ratio);
+      }
+    }
+    
+    // 크롭 영역 계산 (중앙)
+    const cropX=Math.floor((sourceW-targetW)/2);
+    const cropY=Math.floor((sourceH-targetH)/2);
+    
+    console.log(`Capture: source=${sourceW}x${sourceH}, target=${targetW}x${targetH}, crop=(${cropX},${cropY})`);
+    
+    // 캔버스 생성
+    const cap=document.createElement('canvas');
+    cap.width=targetW;
+    cap.height=targetH;
+    const ctx=cap.getContext('2d');
+    const imgData=ctx.createImageData(targetW,targetH);
+    
+    // 픽셀 복사 (상하 반전 + 크롭)
+    for(let y=0;y<targetH;y++){
+      for(let x=0;x<targetW;x++){
+        const srcX=cropX+x;
+        const srcY=cropY+y;
+        const src=(srcY*sourceW+srcX)*4;
+        const dst=((targetH-1-y)*targetW+x)*4;
+        
+        imgData.data[dst]=pixels[src];
+        imgData.data[dst+1]=pixels[src+1];
+        imgData.data[dst+2]=pixels[src+2];
+        imgData.data[dst+3]=255;
+      }
+    }
+    
+    ctx.putImageData(imgData,0,0);
+    const dataUrl=cap.toDataURL('image/jpeg',0.95);
+    
+    const a=document.createElement('a');
+    const mode=isLandscape?'16x9':'9x16';
+    a.href=dataUrl;
+    a.download=`DID_AR_${mode}_${Date.now()}.jpg`;
+    a.click();
+    
+    showToast(`✅ ${mode} 비율로 저장됨!`);
+  }catch(e){
+    console.error('Capture error:',e);
+    showToast('❌ 실패: '+e.message);
+  }
+};
+
+// AR 시작
+startBtnBig.onclick=()=>{
+  if(!('xr' in navigator)||!self.isSecureContext){
+    alert('WebXR을 지원하지 않습니다. Chrome/Edge 사용 및 HTTPS 필요');
+    return;
+  }
+  
+  navigator.xr.isSessionSupported('immersive-ar').then(ok=>{
+    if(!ok){alert('AR이 지원되지 않습니다');return;}
+    
+    const arBtn=ARButton.createButton(renderer,{requiredFeatures:['hit-test']});
+    arBtn.style.display='none';
+    document.body.appendChild(arBtn);
+    arBtn.click();
+    
+    setTimeout(()=>{
+      if(renderer.xr.isPresenting){
+        startScreen.classList.add('hidden');
+        renderer.domElement.classList.add('ar-active');
+        $('fabContainer').style.display='flex';
+        
+        // 현재 방향 표시
+        const isLandscape=currentOrientation==='landscape';
+        orientationInd.textContent=isLandscape?'📱 가로 모드 (16:9)':'📱 세로 모드 (9:16)';
+        orientationInd.classList.add('show');
+        setTimeout(()=>orientationInd.classList.remove('show'),3000);
+        
+        showToast('AR 시작! 핸드폰을 돌려보세요');
+      }
+    },1000);
+  });
+};
+</script>
+</body>
+</html>
