@@ -1407,67 +1407,133 @@ function timestamp(){
 async function captureScene(){
   if(!placed.length){showToast('배치 후 캡처 가능'); return;}
   
+  log('스크린샷 촬영 시작');
   showToast('📸 스크린샷 촬영 중...');
+  
+  // UI 숨기기
   hideUI(true);
   
+  // 렌더링 대기
   await new Promise(resolve=>requestAnimationFrame(resolve));
   await new Promise(resolve=>requestAnimationFrame(resolve));
   await new Promise(resolve=>requestAnimationFrame(resolve));
   
   try{
-    renderer.render(scene, camera);
-    const canvas = renderer.domElement;
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
+    // WebXR 세션에서 직접 캡처 시도
+    const session = renderer.xr.getSession();
+    let imageData = null;
     
-    if(!dataUrl || dataUrl.length < 100){
+    if(session){
+      log('WebXR 세션에서 캡처 시도');
+      // WebGL 컨텍스트에서 픽셀 읽기
+      const gl = renderer.getContext();
+      const width = gl.drawingBufferWidth;
+      const height = gl.drawingBufferHeight;
+      
+      log(`캔버스 크기: ${width}x${height}`);
+      
+      // 픽셀 데이터 읽기
+      const pixels = new Uint8Array(width * height * 4);
+      gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+      
+      // Canvas에 그리기 (상하 반전 필요)
+      const tempCanvas = document.createElement('canvas');
+      tempCanvas.width = width;
+      tempCanvas.height = height;
+      const ctx = tempCanvas.getContext('2d');
+      
+      // ImageData 생성
+      const imgData = ctx.createImageData(width, height);
+      
+      // 상하 반전하면서 복사
+      for(let y = 0; y < height; y++){
+        for(let x = 0; x < width; x++){
+          const srcIdx = (y * width + x) * 4;
+          const dstIdx = ((height - y - 1) * width + x) * 4;
+          imgData.data[dstIdx] = pixels[srcIdx];
+          imgData.data[dstIdx + 1] = pixels[srcIdx + 1];
+          imgData.data[dstIdx + 2] = pixels[srcIdx + 2];
+          imgData.data[dstIdx + 3] = pixels[srcIdx + 3];
+        }
+      }
+      
+      ctx.putImageData(imgData, 0, 0);
+      imageData = tempCanvas.toDataURL('image/jpeg', 0.95);
+      log('WebGL 픽셀 캡처 완료');
+    }else{
+      log('WebXR 세션 없음, 일반 캔버스 캡처');
+      renderer.render(scene, camera);
+      imageData = renderer.domElement.toDataURL('image/jpeg', 0.95);
+    }
+    
+    if(!imageData || imageData.length < 100){
       throw new Error('캡처 데이터가 비어있습니다');
     }
     
-    const res = await fetch(dataUrl);
+    log('이미지 데이터 생성 완료');
+    
+    // Blob 생성
+    const res = await fetch(imageData);
     const blob = await res.blob();
     const filename = 'DID_AR_'+timestamp()+'.jpg';
     const file = new File([blob], filename, {type:'image/jpeg'});
     
-    let shared = false;
+    log(`파일 생성: ${filename}, 크기: ${blob.size} bytes`);
+    
+    // 갤러리 저장을 위한 공유 시도
+    let saved = false;
     if(navigator.canShare && navigator.canShare({files:[file]})){
+      log('공유 API 지원됨, 공유 시도');
       try{
         await navigator.share({
           files:[file],
           title:'📸 DID AR 스크린샷',
-          text:'AR로 미리본 DID 배치 화면입니다.'
+          text:'AR로 미리본 DID 배치 화면입니다. 공유 메뉴에서 "사진에 저장"을 선택하면 갤러리에 저장됩니다.'
         });
-        shared = true;
-        showToast('✓ 사진 공유됨! (갤러리 저장 가능)');
+        saved = true;
+        log('공유 성공');
+        showToast('✓ 사진 공유됨!\n"사진에 저장"을 눌러 갤러리에 저장하세요');
       }catch(shareErr){
-        if(shareErr.name !== 'AbortError'){
-          console.log('Share cancelled or failed:', shareErr);
+        if(shareErr.name === 'AbortError'){
+          log('사용자가 공유 취소');
+          showToast('공유가 취소되었습니다');
+        }else{
+          log('공유 실패: ' + shareErr.message);
         }
       }
+    }else{
+      log('공유 API 미지원');
     }
     
-    if(!shared){
+    // 공유 실패 시 다운로드
+    if(!saved){
+      log('다운로드로 대체');
       const a=document.createElement('a');
-      a.href=dataUrl; 
+      a.href=imageData; 
       a.download=filename;
       document.body.appendChild(a); 
       a.click(); 
       a.remove();
-      showToast('✓ 스크린샷 다운로드됨!');
+      showToast('✓ 스크린샷 다운로드됨!\n갤러리에서 확인하세요');
     }
     
+    // 썸네일 추가
     const img=document.createElement('img'); 
-    img.src=dataUrl;
+    img.src=imageData;
     img.onclick=()=>{
       const viewer = window.open('', '_blank');
-      viewer.document.write(`<img src="${dataUrl}" style="max-width:100%;height:auto;">`);
+      viewer.document.write(`<img src="${imageData}" style="max-width:100%;height:auto;">`);
     };
     $('capStrip').prepend(img);
+    log('썸네일 추가 완료');
     
   }catch(e){
     console.error('Capture error:', e);
+    log('캡처 오류: ' + e.message);
     showToast('❌ 캡처 실패: '+e.message);
   }finally{
     hideUI(false);
+    log('UI 복원');
   }
 }
 
