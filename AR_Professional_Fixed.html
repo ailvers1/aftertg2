@@ -239,12 +239,14 @@
   
   /* ===== 전면 사진 모달 ===== */
   #frontModal{
-    position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.92);
+    position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.85);
     display:none;align-items:center;justify-content:center;
+    backdrop-filter:blur(10px);
   }
   #frontModalContent{
-    background:rgba(30,30,30,.95);border:1px solid rgba(255,255,255,.4);
-    border-radius:12px;padding:18px;max-width:85vw;max-height:80vh;overflow-y:auto;
+    background:#1e1e1e;border:2px solid rgba(79,195,255,.6);
+    border-radius:12px;padding:20px;max-width:90vw;max-height:85vh;overflow-y:auto;
+    box-shadow:0 10px 40px rgba(0,0,0,.8);
   }
   #frontModalTitle{color:#4fc3ff;font-size:16px;font-weight:600;margin-bottom:14px}
   #frontImageGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:10px;margin-bottom:14px}
@@ -869,30 +871,77 @@ $('fileInput').onchange=(e)=>{
 const frontModal=$('frontModal'), frontImageGrid=$('frontImageGrid');
 const frontUploadInput=$('frontUploadInput');
 
-$('btnFrontImage').onclick=()=>{frontModal.style.display='flex';};
-$('frontCancel').onclick=()=>{frontModal.style.display='none';};
-$('frontUpload').onclick=()=>{frontUploadInput.click();};
+$('btnFrontImage').onclick=()=>{
+  log('전면 이미지 모달 열기');
+  frontModal.style.display='flex';
+  // 모달이 보이도록 보장
+  setTimeout(()=>{
+    frontModal.style.opacity='1';
+  }, 10);
+};
+
+$('frontCancel').onclick=()=>{
+  log('전면 이미지 모달 닫기');
+  frontModal.style.display='none';
+};
+
+$('frontUpload').onclick=()=>{
+  log('파일 선택 다이얼로그 열기');
+  try{
+    frontUploadInput.click();
+  }catch(err){
+    log('파일 선택 오류: ' + err.message);
+    alert('파일 선택 중 오류가 발생했습니다.');
+  }
+};
 
 frontUploadInput.onchange=(e)=>{
+  log('파일 선택됨');
   const files = Array.from(e.target.files||[]);
-  if(!files.length) return;
+  if(!files.length){
+    log('파일이 선택되지 않음');
+    return;
+  }
   
+  log(`${files.length}개 파일 로드 시작`);
   showToast('전면 사진 로드 중...');
   
-  files.forEach(f=>{
-    const url=URL.createObjectURL(f);
-    const div=document.createElement('div'); div.className='frontThumb';
-    div.dataset.url=url;
-    const imgEl=document.createElement('img'); imgEl.src=url; div.appendChild(imgEl);
-    div.onclick=()=>{
-      document.querySelectorAll('.frontThumb').forEach(t=>t.classList.remove('selected'));
-      div.classList.add('selected');
-      tempFrontSelection=url;
-    };
-    frontImageGrid.appendChild(div);
+  let loadedCount = 0;
+  files.forEach((f,idx)=>{
+    try{
+      const url=URL.createObjectURL(f);
+      log(`파일 ${idx+1} URL 생성: ${url.substring(0,50)}...`);
+      
+      const div=document.createElement('div'); 
+      div.className='frontThumb';
+      div.dataset.url=url;
+      
+      const imgEl=document.createElement('img'); 
+      imgEl.src=url;
+      imgEl.onload = ()=>{
+        loadedCount++;
+        log(`이미지 ${loadedCount}/${files.length} 로드 완료`);
+        if(loadedCount === files.length){
+          showToast(`✓ 전면 사진 ${files.length}개 추가됨`);
+        }
+      };
+      imgEl.onerror = (err)=>{
+        log(`이미지 로드 실패: ${err}`);
+      };
+      
+      div.appendChild(imgEl);
+      div.onclick=()=>{
+        document.querySelectorAll('.frontThumb').forEach(t=>t.classList.remove('selected'));
+        div.classList.add('selected');
+        tempFrontSelection=url;
+        log('전면 이미지 선택됨');
+      };
+      frontImageGrid.appendChild(div);
+    }catch(err){
+      log('이미지 처리 오류: ' + err.message);
+    }
   });
   
-  showToast(`✓ 전면 사진 ${files.length}개 추가됨`);
   e.target.value='';
 };
 
@@ -901,19 +950,29 @@ frontImageGrid.querySelector('.none').onclick=()=>{
   document.querySelectorAll('.frontThumb').forEach(t=>t.classList.remove('selected'));
   frontImageGrid.querySelector('.none').classList.add('selected');
   tempFrontSelection='';
+  log('전면 이미지 선택 해제');
 };
 
 $('frontApply').onclick=()=>{
-  if(tempFrontSelection){
-    const tex=loader.load(tempFrontSelection); tex.colorSpace=THREE.SRGBColorSpace;
-    currentFrontTexture=tex;
-    showToast('전면 사진 적용됨');
-  }else{
-    currentFrontTexture=null;
-    showToast('전면 사진 제거됨');
+  log('전면 이미지 적용');
+  try{
+    if(tempFrontSelection){
+      const tex=loader.load(tempFrontSelection); 
+      tex.colorSpace=THREE.SRGBColorSpace;
+      currentFrontTexture=tex;
+      showToast('전면 사진 적용됨');
+      log('텍스처 적용 완료');
+    }else{
+      currentFrontTexture=null;
+      showToast('전면 사진 제거됨');
+      log('텍스처 제거됨');
+    }
+    frontModal.style.display='none';
+    if(selectedObj) rebuildSelected();
+  }catch(err){
+    log('텍스처 적용 오류: ' + err.message);
+    alert('전면 이미지 적용 중 오류가 발생했습니다.');
   }
-  frontModal.style.display='none';
-  if(selectedObj) rebuildSelected();
 };
 
 /* ========== 동영상 업로드 ========== */
