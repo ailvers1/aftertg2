@@ -164,7 +164,7 @@
   #reticle::after{
     content:'배치 위치';position:absolute;left:50%;bottom:-35px;transform:translateX(-50%);
     color:#4fc3ff;font-size:13px;font-weight:600;white-space:nowrap;
-    text-shadow:0 2px 8px rgba(0,0,0,.8);
+    text-shadow:0 2px 8px rgba(0,0,0,.8);transition:color 0.3s;
   }
   
   /* ===== FAB 버튼들 ===== */
@@ -333,11 +333,15 @@
     </div>
   </div>
   
-  <!-- 3행: 측정 / 동영상 / 주야간 / 전체삭제 -->
+  <!-- 3행: 배치 모드 / 동영상 / 주야간 / 전면사진 / 전체삭제 -->
   <div class="topRow">
-    <div class="group">
-      <input type="checkbox" id="showMeasure"/>
-      <label for="showMeasure">측정 표시</label>
+    <div class="select-group">
+      <label>📍 배치위치</label>
+      <select id="placeModeSelect">
+        <option value="auto">자동 (제품 유형)</option>
+        <option value="floor">바닥</option>
+        <option value="wall">벽면</option>
+      </select>
     </div>
     <div class="divider"></div>
     <button id="btnVideo" class="btn">🎬 동영상</button>
@@ -524,6 +528,7 @@ let heightOffset=0; // mm 단위
 let isDayMode=true;
 let isTwoFinger=false, pinchStartYaw=0, twistStartAngle=0;
 let tempFrontSelection='';
+let placeMode='auto'; // 'auto', 'floor', 'wall'
 
 /* ========== 재질 ========== */
 const loader = new THREE.TextureLoader();
@@ -767,6 +772,13 @@ modelSelect.onchange=()=>{currentModel=modelSelect.value;};
 
 updateModelList();
 
+// 배치 모드 선택
+const placeModeSelect=$('placeModeSelect');
+placeModeSelect.onchange=()=>{
+  placeMode=placeModeSelect.value;
+  log(`배치 모드 변경: ${placeMode}`);
+};
+
 // 색상
 $('btnBlack').onclick=()=>{
   bodyColor='black'; bodyMat.color.set(0x111111);
@@ -920,7 +932,19 @@ $('videoInput').onchange=(e)=>{
 
 /* ========== XR Hit-test ========== */
 let hitSource=null, transientSource=null, requested=false;
-let lastHitPose=null;
+let lastHitPose=null, lastHitType='floor'; // 'floor' or 'wall'
+
+// 평면이 벽인지 바닥인지 판단
+function isWallPlane(pose){
+  // pose의 변환 행렬에서 법선 벡터 추출
+  const matrix = new THREE.Matrix4().fromArray(pose.transform.matrix);
+  const normal = new THREE.Vector3(0, 0, 1).applyMatrix4(matrix).normalize();
+  
+  // Y축 성분이 작으면 벽 (수직 평면)
+  // Y축 성분이 크면 바닥/천장 (수평 평면)
+  const verticalComponent = Math.abs(normal.y);
+  return verticalComponent < 0.5; // 45도 이상 기울어지면 벽으로 판단
+}
 
 renderer.setAnimationLoop((_,frame)=>{
   if(frame){
@@ -932,7 +956,7 @@ renderer.setAnimationLoop((_,frame)=>{
         session.requestHitTestSource({space:view})
           .then(src=>{
             hitSource=src;
-            log('✓ Hit-test 준비 완료');
+            log('✓ Hit-test 준비 완료 (벽/바닥 모두 감지)');
           })
           .catch(err=>{
             log('❌ Hit-test 실패: '+err.message);
@@ -957,14 +981,58 @@ renderer.setAnimationLoop((_,frame)=>{
     }
     if(hitSource){
       const hits=frame.getHitTestResults(hitSource);
-      if(hits.length){
-        lastHitPose=hits[0].getPose(ref);
+      
+      // 배치 모드에 따라 적절한 평면 찾기
+      let validHit = null;
+      let validType = null;
+      
+      for(const hit of hits){
+        const pose = hit.getPose(ref);
+        if(!pose) continue;
+        
+        const isWall = isWallPlane(pose);
+        
+        // 모드에 따라 필터링
+        if(placeMode === 'auto'){
+          // 자동: 제품 타입에 따라
+          if(currentCategory === 'wall' || currentCategory === 'videowall'){
+            // 벽걸이형 → 벽 선호
+            if(isWall){ validHit=pose; validType='wall'; break; }
+            if(!validHit){ validHit=pose; validType='floor'; } // fallback
+          }else{
+            // 스탠드형 → 바닥 선호
+            if(!isWall){ validHit=pose; validType='floor'; break; }
+            if(!validHit){ validHit=pose; validType='wall'; } // fallback
+          }
+        }else if(placeMode === 'wall'){
+          // 벽 모드: 벽만
+          if(isWall){ validHit=pose; validType='wall'; break; }
+        }else if(placeMode === 'floor'){
+          // 바닥 모드: 바닥만
+          if(!isWall){ validHit=pose; validType='floor'; break; }
+        }
+      }
+      
+      if(validHit){
+        lastHitPose=validHit;
+        lastHitType=validType;
         $('reticle').style.opacity='1';
         $('statusBar').style.display='none';
+        
+        // 리티클 색상 변경 (벽=파랑, 바닥=초록)
+        const reticle = $('reticle');
+        if(validType === 'wall'){
+          reticle.style.borderColor='#4fc3ff';
+          reticle.style.boxShadow='0 0 40px rgba(79,195,255,.8) inset, 0 0 30px rgba(79,195,255,.7)';
+        }else{
+          reticle.style.borderColor='#2ea043';
+          reticle.style.boxShadow='0 0 40px rgba(46,160,67,.8) inset, 0 0 30px rgba(46,160,67,.7)';
+        }
       }else{
         lastHitPose=null;
         $('reticle').style.opacity='0';
         $('statusBar').style.display='block';
+        $('statusBar').textContent = placeMode==='wall' ? '벽을 향해 기기를 움직여보세요' : '바닥을 향해 기기를 움직여보세요';
       }
     }
     if(selectedObj && isTwoFinger && transientSource){
@@ -985,7 +1053,10 @@ renderer.setAnimationLoop((_,frame)=>{
 
 /* ========== 배치 ========== */
 function placeModel(){
-  if(!lastHitPose){showToast('바닥을 인식해주세요'); return;}
+  if(!lastHitPose){
+    showToast(lastHitType==='wall'?'벽을 인식해주세요':'바닥을 인식해주세요'); 
+    return;
+  }
   const model=createModel();
   if(!model){showToast('모델을 선택해주세요'); return;}
   
@@ -994,9 +1065,36 @@ function placeModel(){
   const quat=new THREE.Quaternion().setFromRotationMatrix(m);
   
   model.position.copy(pos);
-  model.position.y += (heightOffset/1000);
-  model.quaternion.copy(quat);
-  model.userData._planeY=pos.y;
+  
+  // 벽면 배치의 경우 회전 조정
+  if(lastHitType === 'wall'){
+    // 벽면 법선 벡터 추출
+    const normal = new THREE.Vector3(0, 0, 1).applyMatrix4(m).normalize();
+    
+    // 벽걸이형이면 벽에 수직으로 배치
+    if(currentCategory === 'wall' || currentCategory === 'videowall'){
+      // 벽을 향하도록 회전
+      const angle = Math.atan2(normal.x, normal.z);
+      model.rotation.y = angle + Math.PI; // 벽을 향하도록
+      
+      // 벽에 붙이기 (약간 앞으로)
+      const offset = 0.05; // 5cm 앞으로
+      model.position.x += normal.x * offset;
+      model.position.z += normal.z * offset;
+    }
+    
+    model.userData._isWallMounted = true;
+    showToast('벽면에 배치되었습니다');
+  }else{
+    // 바닥 배치
+    model.position.y += (heightOffset/1000);
+    model.quaternion.copy(quat);
+    model.userData._isWallMounted = false;
+    showToast('바닥에 배치되었습니다');
+  }
+  
+  model.userData._planePos=pos.clone();
+  model.userData._planeType=lastHitType;
   
   scene.add(model);
   placed.push(model);
@@ -1004,8 +1102,7 @@ function placeModel(){
   setTimeout(()=>{
     selectedObj=model;
     showEditPanel();
-    showToast('모델이 배치되었습니다');
-    log(`✓ 모델 배치됨: ${placed.length}개`);
+    log(`✓ 모델 배치됨: ${placed.length}개 (${lastHitType})`);
   },100);
 }
 
