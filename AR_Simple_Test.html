@@ -10,7 +10,7 @@
   
   #container{
     display:flex;flex-direction:column;align-items:center;justify-content:center;
-    padding:20px;text-align:center;height:100%;
+    padding:20px;text-align:center;height:100%;position:relative;z-index:10;
   }
   
   #status{
@@ -22,7 +22,7 @@
     background:#0ea5e9;color:#fff;border:none;border-radius:12px;
     padding:20px 40px;font-size:18px;font-weight:700;cursor:pointer;
     margin:10px;min-width:200px;touch-action:manipulation;
-    -webkit-tap-highlight-color:transparent;
+    -webkit-tap-highlight-color:transparent;position:relative;z-index:100;
   }
   button:active{transform:scale(0.95);background:#0284c7}
   button:disabled{background:#666;cursor:not-allowed}
@@ -36,8 +36,8 @@
   .log-error{color:#f00}
   .log-success{color:#0ff}
   
-  canvas{position:fixed;inset:0;display:none}
-  canvas.active{display:block}
+  canvas{position:fixed;inset:0;display:none;z-index:1}
+  canvas.active{display:block;z-index:20}
 </style>
 </head>
 <body>
@@ -83,6 +83,7 @@ try{
   renderer.setPixelRatio(window.devicePixelRatio);
   renderer.setSize(window.innerWidth,window.innerHeight);
   renderer.xr.enabled=true;
+  renderer.domElement.style.display='none';
   document.body.appendChild(renderer.domElement);
   
   scene=new THREE.Scene();
@@ -177,6 +178,7 @@ startBtn.onclick=async function(){
     await renderer.xr.setSession(session);
     log('✅ 렌더러에 세션 설정 완료','success');
     
+    renderer.domElement.style.display='block';
     renderer.domElement.classList.add('active');
     $('container').style.display='none';
     
@@ -185,6 +187,7 @@ startBtn.onclick=async function(){
     
     session.addEventListener('end',()=>{
       log('AR 세션 종료');
+      renderer.domElement.style.display='none';
       renderer.domElement.classList.remove('active');
       $('container').style.display='flex';
       startBtn.disabled=false;
