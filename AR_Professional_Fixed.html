@@ -5,8 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no"/>
 <title>DID AR Professional • 실제 제품 사양 기반 AR 배치</title>
 <style>
-  html,body{margin:0;height:100%;overflow:hidden;background:#000;overscroll-behavior:none;font-family:system-ui,-apple-system,'Segoe UI',Roboto,'Noto Sans KR',sans-serif}
-  canvas{position:fixed;inset:0;touch-action:none}
+  html,body{margin:0;height:100%;overflow:hidden;background:#1a1a2e;overscroll-behavior:none;font-family:system-ui,-apple-system,'Segoe UI',Roboto,'Noto Sans KR',sans-serif}
+  canvas{position:fixed;inset:0;touch-action:none;opacity:0;transition:opacity 0.3s}
+  canvas.ar-active{opacity:1}
   
   /* ===== 디버그 오버레이 ===== */
   #debug{
@@ -1035,6 +1036,13 @@ renderer.setAnimationLoop((_,frame)=>{
       
       session.addEventListener('end',()=>{
         requested=false; hitSource=null; transientSource=null;
+        // Canvas 숨기기
+        renderer.domElement.classList.remove('ar-active');
+        // 시작 화면 다시 표시
+        startScreen.classList.remove('hidden');
+        // UI 숨기기
+        $('topBar').style.display='none';
+        $('bottomTray').style.display='none';
         $('startBtn').style.display='block';
         $('placeBtn').style.display='none';
         $('captureBtn').style.display='none';
@@ -1517,6 +1525,8 @@ function startAR(){
         if(renderer.xr.isPresenting){
           // 시작 화면 숨기기
           startScreen.classList.add('hidden');
+          // Canvas 표시
+          renderer.domElement.classList.add('ar-active');
           // UI 요소들 표시
           $('topBar').style.display='flex';
           $('bottomTray').style.display='flex';
