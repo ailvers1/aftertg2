@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no"/>
+<title>AR Simple Test</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%;overflow:hidden;background:#000;font-family:system-ui,-apple-system,sans-serif;color:#fff}
+  
+  #container{
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    padding:20px;text-align:center;height:100%;
+  }
+  
+  #status{
+    font-size:18px;margin-bottom:20px;padding:15px;background:rgba(255,255,255,0.1);
+    border-radius:10px;width:90%;max-width:400px;
+  }
+  
+  button{
+    background:#0ea5e9;color:#fff;border:none;border-radius:12px;
+    padding:20px 40px;font-size:18px;font-weight:700;cursor:pointer;
+    margin:10px;min-width:200px;touch-action:manipulation;
+    -webkit-tap-highlight-color:transparent;
+  }
+  button:active{transform:scale(0.95);background:#0284c7}
+  button:disabled{background:#666;cursor:not-allowed}
+  
+  #log{
+    margin-top:20px;padding:15px;background:rgba(0,255,0,0.1);
+    border-radius:10px;width:90%;max-width:500px;max-height:300px;
+    overflow-y:auto;font-size:12px;font-family:monospace;text-align:left;
+  }
+  .log-line{margin:3px 0;color:#0f0}
+  .log-error{color:#f00}
+  .log-success{color:#0ff}
+  
+  canvas{position:fixed;inset:0;display:none}
+  canvas.active{display:block}
+</style>
+</head>
+<body>
+
+<div id="container">
+  <h1 style="font-size:32px;margin-bottom:20px">🔍 AR 테스트</h1>
+  <div id="status">준비 중...</div>
+  <button id="checkBtn">1️⃣ AR 지원 확인</button>
+  <button id="startBtn" disabled>2️⃣ AR 세션 시작</button>
+  <div id="log"></div>
+</div>
+
+<script type="module">
+import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
+
+const $=id=>document.getElementById(id);
+const status=$('status');
+const checkBtn=$('checkBtn');
+const startBtn=$('startBtn');
+const logDiv=$('log');
+
+let logCount=0;
+function log(msg,type='info'){
+  logCount++;
+  const line=document.createElement('div');
+  line.className=`log-line ${type==='error'?'log-error':type==='success'?'log-success':''}`;
+  line.textContent=`[${logCount}] ${new Date().toLocaleTimeString()} - ${msg}`;
+  logDiv.appendChild(line);
+  logDiv.scrollTop=logDiv.scrollHeight;
+  console.log(msg);
+}
+
+function setStatus(msg){
+  status.textContent=msg;
+  log(msg,'success');
+}
+
+// Three.js 초기화
+let renderer,scene,camera;
+try{
+  log('Three.js 초기화 시작...');
+  renderer=new THREE.WebGLRenderer({antialias:true,alpha:false});
+  renderer.setPixelRatio(window.devicePixelRatio);
+  renderer.setSize(window.innerWidth,window.innerHeight);
+  renderer.xr.enabled=true;
+  document.body.appendChild(renderer.domElement);
+  
+  scene=new THREE.Scene();
+  camera=new THREE.PerspectiveCamera(75,window.innerWidth/window.innerHeight,0.01,100);
+  
+  const light=new THREE.HemisphereLight(0xffffff,0x444444,1);
+  scene.add(light);
+  
+  // 간단한 큐브
+  const geometry=new THREE.BoxGeometry(0.2,0.2,0.2);
+  const material=new THREE.MeshBasicMaterial({color:0x00ff00});
+  const cube=new THREE.Mesh(geometry,material);
+  cube.position.set(0,0,-1);
+  scene.add(cube);
+  
+  renderer.setAnimationLoop(()=>{
+    renderer.render(scene,camera);
+  });
+  
+  log('Three.js 초기화 완료','success');
+  setStatus('Three.js 준비 완료 ✅');
+}catch(e){
+  log('Three.js 초기화 실패: '+e.message,'error');
+  setStatus('❌ 초기화 실패');
+}
+
+// 1단계: AR 지원 확인
+checkBtn.onclick=async function(){
+  checkBtn.disabled=true;
+  log('=== AR 지원 체크 시작 ===');
+  
+  try{
+    // HTTPS 체크
+    log(`프로토콜: ${window.location.protocol}`);
+    if(!self.isSecureContext){
+      throw new Error('HTTPS 연결이 필요합니다');
+    }
+    log('✅ HTTPS 확인','success');
+    
+    // WebXR 체크
+    if(!('xr' in navigator)){
+      throw new Error('navigator.xr이 없습니다 (WebXR 미지원)');
+    }
+    log('✅ navigator.xr 존재','success');
+    
+    // 브라우저 정보
+    log(`User Agent: ${navigator.userAgent}`);
+    
+    // AR 지원 체크
+    log('immersive-ar 지원 체크 중...');
+    const supported=await navigator.xr.isSessionSupported('immersive-ar');
+    log(`결과: ${supported}`);
+    
+    if(!supported){
+      throw new Error('이 기기/브라우저는 AR을 지원하지 않습니다');
+    }
+    
+    log('✅ AR 지원 확인 완료!','success');
+    setStatus('✅ AR 지원됨! 다음 단계 진행 가능');
+    startBtn.disabled=false;
+    
+  }catch(e){
+    log('❌ 오류: '+e.message,'error');
+    setStatus('❌ '+e.message);
+    
+    // 해결 방법 제안
+    if(!self.isSecureContext){
+      log('💡 해결방법: HTTPS 주소를 사용하세요','success');
+    }
+    if(!('xr' in navigator)){
+      log('💡 해결방법: Chrome 또는 Edge 브라우저를 사용하세요','success');
+    }
+  }
+};
+
+// 2단계: AR 세션 시작
+startBtn.onclick=async function(){
+  startBtn.disabled=true;
+  log('=== AR 세션 시작 ===');
+  
+  try{
+    log('AR 세션 요청 중...');
+    
+    const session=await navigator.xr.requestSession('immersive-ar',{
+      requiredFeatures:['hit-test'],
+      optionalFeatures:['dom-overlay'],
+      domOverlay:$('container')?{root:$('container')}:undefined
+    });
+    
+    log('✅ AR 세션 생성됨!','success');
+    
+    await renderer.xr.setSession(session);
+    log('✅ 렌더러에 세션 설정 완료','success');
+    
+    renderer.domElement.classList.add('active');
+    $('container').style.display='none';
+    
+    setStatus('🎉 AR 실행 중!');
+    log('AR 세션이 성공적으로 시작되었습니다!','success');
+    
+    session.addEventListener('end',()=>{
+      log('AR 세션 종료');
+      renderer.domElement.classList.remove('active');
+      $('container').style.display='flex';
+      startBtn.disabled=false;
+      setStatus('AR 세션이 종료되었습니다');
+    });
+    
+  }catch(e){
+    log('❌ AR 세션 시작 실패: '+e.message,'error');
+    log('에러 이름: '+e.name,'error');
+    setStatus('❌ AR 시작 실패');
+    startBtn.disabled=false;
+    
+    // 일반적인 오류 해결 방법
+    if(e.name==='NotAllowedError'){
+      log('💡 사용자가 권한을 거부했습니다. 카메라 권한을 허용해주세요','success');
+    }else if(e.name==='NotSupportedError'){
+      log('💡 필수 기능을 사용할 수 없습니다','success');
+    }else if(e.name==='SecurityError'){
+      log('💡 보안 문제가 발생했습니다. HTTPS를 확인하세요','success');
+    }
+  }
+};
+
+// 초기 상태
+log('앱 로드 완료');
+log('브라우저: '+navigator.userAgent);
+setStatus('준비 완료 - 1단계 버튼을 눌러주세요');
+</script>
+</body>
+</html>
