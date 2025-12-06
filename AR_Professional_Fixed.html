@@ -279,6 +279,15 @@
     증강현실로 삼성 DID 디스플레이를 실제 공간에 배치하고
     다양한 제품과 설정을 미리 체험해보세요
   </div>
+  <!-- 전면 사진 업로드 (AR 시작 전) -->
+  <div style="margin:20px 0;padding:15px;background:rgba(255,255,255,0.1);border-radius:12px;max-width:400px;">
+    <div style="color:#fff;font-size:14px;margin-bottom:10px;font-weight:500;">📸 전면 사진 업로드 (선택사항)</div>
+    <div style="color:rgba(255,255,255,0.7);font-size:12px;margin-bottom:12px;">DID 제품에 표시할 이미지나 동영상을 미리 업로드하세요</div>
+    <input type="file" id="preARUpload" accept="image/*,video/*" multiple style="display:none;">
+    <label for="preARUpload" style="display:inline-block;background:#fff;color:#667eea;padding:10px 20px;border-radius:20px;cursor:pointer;font-size:14px;font-weight:600;">이미지/동영상 선택</label>
+    <div id="preARStatus" style="color:#4fc3ff;font-size:12px;margin-top:10px;min-height:20px;"></div>
+  </div>
+  
   <button id="startBtnBig">🚀 AR 시작하기</button>
   
   <div id="startFeatures">
@@ -866,6 +875,35 @@ $('fileInput').onchange=(e)=>{
   
   showToast(`✓ 이미지 ${files.length}개 추가됨`);
   e.target.value='';
+};
+
+/* ========== 전면 사진 업로드 (AR 시작 전) ========== */
+const preARUpload = $('preARUpload');
+const preARStatus = $('preARStatus');
+let preUploadedFiles = []; // 미리 업로드한 파일들
+
+preARUpload.onchange = (e) => {
+  const files = Array.from(e.target.files || []);
+  if(!files.length) return;
+  
+  preUploadedFiles = [];
+  preARStatus.textContent = `${files.length}개 파일 업로드됨 ✓`;
+  
+  files.forEach(f => {
+    const url = URL.createObjectURL(f);
+    preUploadedFiles.push({
+      url: url,
+      name: f.name,
+      type: f.type
+    });
+    
+    // 화면 이미지 썸네일에 추가
+    if(f.type.startsWith('image/')){
+      // 시작 후 썸네일 트레이에 자동 추가됨
+    }
+  });
+  
+  log(`Pre-AR 업로드: ${files.length}개 파일`);
 };
 
 /* ========== 전면 사진 모달 ========== */
@@ -1554,6 +1592,27 @@ function startAR(){
           startBtn.style.display='none';
           placeBtn.style.display='block';
           captureBtn.style.display='block';
+          
+          // Pre-uploaded 파일 로드
+          if(preUploadedFiles.length > 0){
+            log(`미리 업로드된 파일 ${preUploadedFiles.length}개 로드 중`);
+            preUploadedFiles.forEach((file, idx) => {
+              if(file.type.startsWith('image/')){
+                addScreenThumbnail(file.url, idx === 0);
+              }else if(file.type.startsWith('video/')){
+                // 비디오는 currentVideoTexture에 설정
+                const videoEl = document.createElement('video');
+                videoEl.src = file.url;
+                videoEl.load();
+                const videoTexture = new THREE.VideoTexture(videoEl);
+                videoTexture.colorSpace = THREE.SRGBColorSpace;
+                currentVideoTexture = videoTexture;
+                showToast('✓ 비디오 업로드됨');
+              }
+            });
+            showToast(`✓ ${preUploadedFiles.length}개 파일 적용됨`);
+          }
+          
           log('✓ AR 세션 활성화됨');
           showToast('AR 세션 시작됨');
         }else{
