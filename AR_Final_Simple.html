@@ -291,23 +291,37 @@ placeBtn.addEventListener('click',e=>{e.preventDefault();doPlace();});
 // AR 시작
 let isStarting=false;
 async function doStartAR(){
-  if(isStarting)return;
+  console.log('🔵 doStartAR 호출됨');
+  
+  if(isStarting){
+    console.log('⚠️ 이미 시작 중');
+    return;
+  }
   isStarting=true;
   
+  console.log('✅ AR 시작 프로세스 시작');
+  showToast('AR 준비 중...');
+  
   if(!('xr' in navigator)){
+    console.log('❌ navigator.xr 없음');
     alert('WebXR을 지원하지 않습니다. Chrome 브라우저를 사용해주세요');
     isStarting=false;
     return;
   }
+  console.log('✅ navigator.xr 존재');
   
   if(!self.isSecureContext){
+    console.log('❌ HTTPS 아님');
     alert('HTTPS 연결이 필요합니다');
     isStarting=false;
     return;
   }
+  console.log('✅ HTTPS 확인');
   
   try{
+    console.log('🔍 AR 지원 체크 중...');
     const supported=await navigator.xr.isSessionSupported('immersive-ar');
+    console.log('AR 지원 여부:',supported);
     
     if(!supported){
       alert('이 기기는 AR을 지원하지 않습니다.\n\nChrome 브라우저를 사용 중인지 확인해주세요.');
@@ -315,55 +329,70 @@ async function doStartAR(){
       return;
     }
     
-    const arBtn=ARButton.createButton(renderer,{
-      requiredFeatures:['hit-test'],
-      optionalFeatures:[]
+    console.log('✅ AR 지원됨, 세션 요청 중...');
+    showToast('카메라 권한을 허용해주세요...');
+    
+    // ARButton 대신 직접 세션 요청
+    const session=await navigator.xr.requestSession('immersive-ar',{
+      requiredFeatures:['hit-test']
     });
     
-    arBtn.style.display='none';
-    document.body.appendChild(arBtn);
-    arBtn.click();
+    console.log('✅ AR 세션 생성됨');
     
-    let checkCount=0;
-    const checkInterval=setInterval(()=>{
-      checkCount++;
-      
-      if(renderer.xr.isPresenting){
-        clearInterval(checkInterval);
-        
-        startScreen.classList.add('hidden');
-        renderer.domElement.classList.add('ar-active');
-        $('fabContainer').style.display='block';
-        
-        const isLandscape=currentOrientation==='landscape';
-        orientationInd.textContent=isLandscape?'📱 가로 모드 (16:9)':'📱 세로 모드 (9:16)';
-        orientationInd.classList.add('show');
-        setTimeout(()=>orientationInd.classList.remove('show'),3000);
-        
-        showToast('AR 시작! 바닥을 비춰주세요');
-        
-        if(arBtn.parentNode){
-          arBtn.parentNode.removeChild(arBtn);
-        }
-        
-        isStarting=false;
-      }
-      
-      if(checkCount>=20){
-        clearInterval(checkInterval);
-        isStarting=false;
-      }
-    },200);
+    await renderer.xr.setSession(session);
+    console.log('✅ 렌더러에 세션 설정 완료');
+    
+    startScreen.classList.add('hidden');
+    renderer.domElement.classList.add('ar-active');
+    $('fabContainer').style.display='block';
+    
+    const isLandscape=currentOrientation==='landscape';
+    orientationInd.textContent=isLandscape?'📱 가로 모드 (16:9)':'📱 세로 모드 (9:16)';
+    orientationInd.classList.add('show');
+    setTimeout(()=>orientationInd.classList.remove('show'),3000);
+    
+    showToast('AR 시작! 바닥을 비춰주세요');
+    
+    session.addEventListener('end',()=>{
+      console.log('AR 세션 종료');
+      hitSource=null;
+      startScreen.classList.remove('hidden');
+      renderer.domElement.classList.remove('ar-active');
+      $('fabContainer').style.display='none';
+      reticle.style.opacity='0';
+      orientationInd.classList.remove('show');
+      screenshotGuide.classList.remove('show');
+      isStarting=false;
+    });
+    
+    console.log('🎉 AR 완전히 시작됨!');
+    isStarting=false;
     
   }catch(e){
-    alert('AR 시작 실패: '+e.message);
+    console.error('❌ AR 시작 실패:',e);
+    console.error('에러 이름:',e.name);
+    console.error('에러 메시지:',e.message);
+    alert('AR 시작 실패: '+e.message+'\n\n에러 타입: '+e.name);
     isStarting=false;
   }
 }
 
-startBtnBig.addEventListener('touchstart',e=>e.preventDefault(),{passive:false});
-startBtnBig.addEventListener('touchend',e=>{e.preventDefault();doStartAR();},{passive:false});
-startBtnBig.addEventListener('click',e=>{e.preventDefault();doStartAR();});
+startBtnBig.addEventListener('touchstart',e=>{
+  console.log('👆 Start 버튼 touchstart');
+  e.preventDefault();
+},{passive:false});
+
+startBtnBig.addEventListener('touchend',e=>{
+  console.log('👆 Start 버튼 touchend');
+  e.preventDefault();
+  doStartAR();
+},{passive:false});
+
+startBtnBig.addEventListener('click',e=>{
+  console.log('👆 Start 버튼 click');
+  e.preventDefault();
+  doStartAR();
+});
 </script>
 </body>
 </html>
