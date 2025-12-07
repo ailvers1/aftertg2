@@ -47,7 +47,7 @@ canvas {position: fixed; top: 0; left: 0; width: 100%; height: 100%;}
 
 .features {
   display: flex; flex-direction: column; gap: 12px;
-  margin-bottom: 40px; max-width: 400px;
+  margin-bottom: 100px; max-width: 400px;
 }
 
 .feature {
@@ -59,28 +59,37 @@ canvas {position: fixed; top: 0; left: 0; width: 100%; height: 100%;}
 
 .feature-icon {font-size: 28px;}
 
-/* ARButton 스타일 */
+/* ARButton 컨테이너 */
+#arButtonContainer {
+  position: absolute;
+  bottom: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+}
+
+/* ARButton 스타일 - 초록색 */
 #ARButton {
-  background: white !important;
-  color: #667eea !important;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+  color: white !important;
   border: none !important;
   border-radius: 50px !important;
-  padding: 22px 70px !important;
-  font-size: 22px !important;
+  padding: 20px 60px !important;
+  font-size: 20px !important;
   font-weight: bold !important;
   cursor: pointer !important;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.4) !important;
+  box-shadow: 0 8px 25px rgba(16,185,129,0.4) !important;
   transition: all 0.3s !important;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
 }
 
 #ARButton:hover {
-  transform: translateY(-3px) scale(1.02) !important;
-  box-shadow: 0 15px 40px rgba(0,0,0,0.5) !important;
+  transform: translateY(-2px) scale(1.03) !important;
+  box-shadow: 0 12px 35px rgba(16,185,129,0.5) !important;
 }
 
 #ARButton:active {
-  transform: translateY(-1px) scale(0.98) !important;
+  transform: translateY(0) scale(0.98) !important;
 }
 
 /* ========== 상단 컨트롤 바 ========== */
@@ -243,6 +252,8 @@ input[type="number"] {
   transition: opacity 0.3s;
   box-shadow: 0 0 40px rgba(79,195,255,0.8) inset, 0 0 30px rgba(79,195,255,0.7);
   animation: pulse 2s ease-in-out infinite;
+  display: block !important;
+  visibility: visible !important;
 }
 
 @keyframes pulse {
@@ -299,7 +310,8 @@ input[type="number"] {
     </div>
   </div>
   
-  <!-- ARButton이 여기에 추가됩니다 -->
+  <!-- ARButton 컨테이너 -->
+  <div id="arButtonContainer"></div>
 </div>
 
 <!-- 상단 컨트롤 바 -->
@@ -529,12 +541,21 @@ function onARSessionStarted(session) {
     fabContainer.style.display = 'none';
     dirPad.style.display = 'none';
     reticle.style.opacity = '0';
+    reticle.style.display = 'none';
   });
   
+  // UI 전환
   startOverlay.classList.add('hidden');
-  topBar.style.display = 'flex';
-  fabContainer.style.display = 'flex';
-  dirPad.style.display = 'grid';
+  
+  // 약간의 딜레이 후 컨트롤 표시
+  setTimeout(() => {
+    topBar.style.display = 'flex';
+    fabContainer.style.display = 'flex';
+    dirPad.style.display = 'grid';
+    reticle.style.display = 'block';
+    
+    console.log('컨트롤 표시됨');
+  }, 100);
   
   showToast('바닥을 비춰주세요', 3000);
 }
@@ -564,10 +585,13 @@ renderer.setAnimationLoop((timestamp, frame) => {
         
         reticleMesh.visible = true;
         reticle.style.opacity = '1';
+        reticle.style.display = 'block';
         reticleMesh.matrix.fromArray(pose.transform.matrix);
+        
+        console.log('리티클 표시 중');
       } else {
         reticleMesh.visible = false;
-        reticle.style.opacity = '0';
+        reticle.style.opacity = '0.3';
       }
     }
   }
@@ -778,7 +802,8 @@ const arButton = ARButton.createButton(renderer, {
 
 arButton.id = 'ARButton';
 arButton.textContent = '🚀 AR 시작하기';
-startOverlay.appendChild(arButton);
+const arButtonContainer = document.getElementById('arButtonContainer');
+arButtonContainer.appendChild(arButton);
 
 // ========== 리사이즈 ==========
 window.addEventListener('resize', () => {
