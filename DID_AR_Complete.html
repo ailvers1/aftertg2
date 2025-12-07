@@ -547,15 +547,26 @@ function onARSessionStarted(session) {
   // UI 전환
   startOverlay.classList.add('hidden');
   
-  // 약간의 딜레이 후 컨트롤 표시
-  setTimeout(() => {
-    topBar.style.display = 'flex';
-    fabContainer.style.display = 'flex';
-    dirPad.style.display = 'grid';
-    reticle.style.display = 'block';
-    
-    console.log('컨트롤 표시됨');
-  }, 100);
+  // 즉시 컨트롤 표시
+  topBar.style.display = 'flex';
+  topBar.style.visibility = 'visible';
+  topBar.style.opacity = '1';
+  
+  fabContainer.style.display = 'flex';
+  fabContainer.style.visibility = 'visible';
+  fabContainer.style.opacity = '1';
+  
+  dirPad.style.display = 'grid';
+  dirPad.style.visibility = 'visible';
+  dirPad.style.opacity = '1';
+  
+  reticle.style.display = 'block';
+  reticle.style.visibility = 'visible';
+  
+  console.log('컨트롤 표시됨');
+  console.log('topBar:', topBar.style.display);
+  console.log('fabContainer:', fabContainer.style.display);
+  console.log('dirPad:', dirPad.style.display);
   
   showToast('바닥을 비춰주세요', 3000);
 }
