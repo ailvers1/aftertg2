@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no"/>
+<title>DID AR Professional</title>
+<style>
+* {margin: 0; padding: 0; box-sizing: border-box;}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: #000;
+  overflow: hidden;
+  position: fixed;
+  width: 100%;
+  height: 100%;
+}
+
+canvas {position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none;}
+
+/* ========== 시작 화면 ========== */
+#startOverlay {
+  position: fixed; inset: 0;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  z-index: 1000; padding: 30px 20px;
+}
+#startOverlay.hidden {display: none;}
+
+.logo {font-size: 72px; margin-bottom: 25px; animation: float 3s ease-in-out infinite;}
+@keyframes float {
+  0%, 100% {transform: translateY(0);}
+  50% {transform: translateY(-15px);}
+}
+
+.title {
+  color: white; font-size: 36px; font-weight: bold;
+  margin-bottom: 15px; text-align: center;
+  text-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+
+.subtitle {
+  color: rgba(255,255,255,0.95); font-size: 17px;
+  margin-bottom: 35px; text-align: center;
+  line-height: 1.6; max-width: 450px;
+}
+
+.features {
+  display: flex; flex-direction: column; gap: 12px;
+  margin-bottom: 100px; max-width: 400px;
+}
+
+.feature {
+  display: flex; align-items: center; gap: 14px;
+  background: rgba(255,255,255,0.12); padding: 12px 18px;
+  border-radius: 12px; backdrop-filter: blur(10px);
+  color: white; font-size: 15px;
+}
+
+.feature-icon {font-size: 28px;}
+
+/* ARButton 컨테이너 */
+#arButtonContainer {
+  position: absolute;
+  bottom: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+}
+
+/* ARButton 스타일 - 초록색 */
+#ARButton {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+  color: white !important;
+  border: none !important;
+  border-radius: 50px !important;
+  padding: 20px 60px !important;
+  font-size: 20px !important;
+  font-weight: bold !important;
+  cursor: pointer !important;
+  box-shadow: 0 8px 25px rgba(16,185,129,0.4) !important;
+  transition: all 0.3s !important;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+}
+
+#ARButton:hover {
+  transform: translateY(-2px) scale(1.03) !important;
+  box-shadow: 0 12px 35px rgba(16,185,129,0.5) !important;
+}
+
+#ARButton:active {
+  transform: translateY(0) scale(0.98) !important;
+}
+
+/* ========== 상단 컨트롤 바 ========== */
+#topBar {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 9999;
+  background: linear-gradient(to bottom, rgba(0,0,0,0.95), rgba(0,0,0,0.85));
+  padding: 12px 14px; display: none; flex-direction: column; gap: 10px;
+  box-shadow: 0 3px 15px rgba(0,0,0,0.6);
+  pointer-events: auto;
+}
+
+.topRow {display: flex; gap: 8px; align-items: center; flex-wrap: wrap;}
+
+/* 드롭다운 */
+.select-group {display: flex; align-items: center; gap: 7px; color: #fff; font-size: 14px;}
+.select-group label {min-width: 75px; font-weight: 500;}
+.select-group select {
+  background: rgba(255,255,255,0.2); color: #fff;
+  border: 1px solid rgba(255,255,255,0.4);
+  border-radius: 8px; padding: 8px 12px;
+  font-size: 14px; min-width: 140px; cursor: pointer;
+  transition: all 0.2s;
+}
+.select-group select:hover {background: rgba(255,255,255,0.3);}
+.select-group select:focus {outline: none; border-color: #4fc3ff; background: rgba(79,195,255,0.3);}
+.select-group select option {background: #1a1a1a; color: #fff;}
+
+/* 버튼 */
+.btn {
+  color: #fff; background: rgba(255,255,255,0.15);
+  border: 1px solid rgba(255,255,255,0.35);
+  border-radius: 8px; padding: 8px 15px;
+  font-size: 14px; cursor: pointer;
+  white-space: nowrap; user-select: none;
+  transition: all 0.2s;
+}
+.btn:active {background: rgba(255,255,255,0.3); transform: scale(0.97);}
+.btn.active {background: rgba(14,165,233,0.7); border-color: rgba(14,165,233,1);}
+
+/* 입력 */
+.group {display: flex; align-items: center; gap: 7px; color: #fff; font-size: 14px;}
+input[type="range"] {width: 100px; height: 6px;}
+input[type="number"] {
+  background: rgba(255,255,255,0.2); color: #fff;
+  border: 1px solid rgba(255,255,255,0.4);
+  border-radius: 7px; padding: 7px 10px;
+  font-size: 14px; width: 60px;
+}
+
+.divider {width: 1px; height: 24px; background: rgba(255,255,255,0.3); margin: 0 8px;}
+
+/* ========== 방향키 패드 ========== */
+#dirPad {
+  position: fixed; right: 20px; bottom: 100px; z-index: 9999;
+  display: none; grid-template-columns: repeat(3, 42px);
+  grid-template-rows: repeat(3, 42px); gap: 5px;
+  pointer-events: auto;
+}
+
+#dirPad button {
+  width: 42px; height: 42px; border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.4);
+  background: rgba(255,255,255,0.2);
+  color: #fff; font-size: 18px;
+  cursor: pointer; transition: all 0.15s;
+  pointer-events: auto;
+}
+
+#dirPad button:active {
+  background: rgba(255,255,255,0.4);
+  transform: scale(0.93);
+}
+
+#dirPad .center {
+  background: rgba(0,0,0,0.4);
+  width: 32px; height: 32px;
+  margin: 5px; opacity: 0.5;
+}
+
+#padUp {grid-column: 2; grid-row: 1;}
+#padLeft {grid-column: 1; grid-row: 2;}
+#padCenter {grid-column: 2; grid-row: 2;}
+#padRight {grid-column: 3; grid-row: 2;}
+#padDown {grid-column: 2; grid-row: 3;}
+
+/* 가로 모드 */
+@media (orientation: landscape) {
+  #dirPad {
+    top: 50%;
+    transform: translateY(-50%);
+    bottom: auto;
+  }
+}
+
+/* ========== FAB 버튼들 ========== */
+#fabContainer {
+  position: fixed; left: 20px; bottom: 100px; z-index: 9999;
+  display: none; flex-direction: column; gap: 12px;
+  pointer-events: auto;
+}
+
+/* 가로 모드 */
+@media (orientation: landscape) {
+  #fabContainer {
+    left: 20px;
+    bottom: 50%;
+    transform: translateY(50%);
+  }
+}
+
+.fab {
+  background: #0ea5e9;
+  color: white;
+  border: none;
+  border-radius: 14px;
+  padding: 14px 22px;
+  font-size: 15px;
+  font-weight: bold;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.6);
+  transition: all 0.2s;
+  min-width: 110px;
+  pointer-events: auto;
+}
+
+.fab:active {
+  transform: scale(0.93);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.6);
+}
+
+.fab.green {background: #10b981;}
+.fab.red {background: #ef4444;}
+
+/* ========== 토스트 ========== */
+#toast {
+  position: fixed;
+  left: 50%;
+  bottom: 200px;
+  transform: translateX(-50%);
+  background: rgba(0,0,0,0.92);
+  color: white;
+  padding: 14px 24px;
+  border-radius: 10px;
+  font-size: 16px;
+  font-weight: 500;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.7);
+  z-index: 10000;
+  display: none;
+  white-space: nowrap;
+}
+
+/* ========== 리티클 ========== */
+#reticle {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 180px;
+  height: 180px;
+  border: 4px solid #4fc3ff;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 9998;
+  opacity: 0;
+  transition: opacity 0.3s;
+  box-shadow: 0 0 40px rgba(79,195,255,0.8) inset, 0 0 30px rgba(79,195,255,0.7);
+  animation: pulse 2s ease-in-out infinite;
+  display: block !important;
+  visibility: visible !important;
+}
+
+@keyframes pulse {
+  0%, 100% {transform: translate(-50%, -50%) scale(1);}
+  50% {transform: translate(-50%, -50%) scale(1.05);}
+}
+
+#reticle::after {
+  content: '배치 위치';
+  position: absolute;
+  left: 50%;
+  bottom: -40px;
+  transform: translateX(-50%);
+  color: #4fc3ff;
+  font-size: 14px;
+  font-weight: 600;
+  text-shadow: 0 2px 8px rgba(0,0,0,0.9);
+}
+
+/* 모바일 최적화 */
+@media (max-width: 480px) {
+  #topBar {padding: 10px; gap: 8px;}
+  .select-group select {min-width: 115px; padding: 7px 10px; font-size: 13px;}
+  .btn {padding: 7px 12px; font-size: 13px;}
+  .divider {display: none;}
+  #dirPad {grid-template-columns: repeat(3, 38px); grid-template-rows: repeat(3, 38px);}
+  #dirPad button {width: 38px; height: 38px; font-size: 16px;}
+}
+</style>
+</head>
+<body>
+
+<!-- 시작 오버레이 -->
+<div id="startOverlay">
+  <div class="logo">📱✨</div>
+  <div class="title">DID AR Professional</div>
+  <div class="subtitle">
+    증강현실로 삼성 DID 디스플레이를<br>
+    실제 공간에 배치하고 체험해보세요
+  </div>
+  
+  <div class="features">
+    <div class="feature">
+      <span class="feature-icon">🖼️</span>
+      <span>스탠드 / 벽걸이 설치 방식 선택</span>
+    </div>
+    <div class="feature">
+      <span class="feature-icon">🎨</span>
+      <span>색상, 사이즈, 화면 커스터마이징</span>
+    </div>
+    <div class="feature">
+      <span class="feature-icon">📸</span>
+      <span>자유로운 위치 이동 및 회전</span>
+    </div>
+  </div>
+  
+  <!-- ARButton 컨테이너 -->
+  <div id="arButtonContainer"></div>
+</div>
+
+<!-- 상단 컨트롤 바 -->
+<div id="topBar">
+  <div class="topRow">
+    <div class="select-group">
+      <label>타입</label>
+      <select id="mountType">
+        <option value="stand">스탠드형</option>
+        <option value="wall">벽걸이형</option>
+      </select>
+    </div>
+    
+    <div class="select-group">
+      <label>사이즈</label>
+      <select id="sizeSelect">
+        <option value="43">43인치</option>
+        <option value="55" selected>55인치</option>
+        <option value="65">65인치</option>
+        <option value="75">75인치</option>
+      </select>
+    </div>
+    
+    <div class="select-group">
+      <label>색상</label>
+      <select id="colorSelect">
+        <option value="black" selected>블랙</option>
+        <option value="white">화이트</option>
+        <option value="gray">그레이</option>
+      </select>
+    </div>
+  </div>
+  
+  <div class="topRow">
+    <button class="btn" id="captureBtn">📸 캡처</button>
+    <div class="divider"></div>
+    
+    <div class="group">
+      <label>높이</label>
+      <input type="number" id="heightInput" value="150" step="10" min="50" max="300">
+      <span>cm</span>
+    </div>
+    
+    <div class="divider"></div>
+    
+    <div class="group">
+      <label>회전</label>
+      <input type="range" id="rotateSlider" min="0" max="360" value="0" step="1">
+      <span id="rotateValue">0°</span>
+    </div>
+  </div>
+</div>
+
+<!-- FAB 버튼들 -->
+<div id="fabContainer">
+  <button class="fab" id="placeBtn">📍 배치</button>
+  <button class="fab green" id="selectBtn" style="display:none">✓ 선택</button>
+  <button class="fab red" id="deleteBtn" style="display:none">🗑 삭제</button>
+</div>
+
+<!-- 방향키 패드 -->
+<div id="dirPad">
+  <button id="padUp">↑</button>
+  <button id="padLeft">←</button>
+  <div class="center" id="padCenter"></div>
+  <button id="padRight">→</button>
+  <button id="padDown">↓</button>
+</div>
+
+<!-- 토스트 -->
+<div id="toast"></div>
+
+<!-- 리티클 -->
+<div id="reticle"></div>
+
+<script type="module">
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
+import { ARButton } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/webxr/ARButton.js';
+
+// ========== DOM 요소 ==========
+const startOverlay = document.getElementById('startOverlay');
+const topBar = document.getElementById('topBar');
+const fabContainer = document.getElementById('fabContainer');
+const dirPad = document.getElementById('dirPad');
+
+const placeBtn = document.getElementById('placeBtn');
+const selectBtn = document.getElementById('selectBtn');
+const deleteBtn = document.getElementById('deleteBtn');
+const captureBtn = document.getElementById('captureBtn');
+
+const mountType = document.getElementById('mountType');
+const sizeSelect = document.getElementById('sizeSelect');
+const colorSelect = document.getElementById('colorSelect');
+const heightInput = document.getElementById('heightInput');
+const rotateSlider = document.getElementById('rotateSlider');
+const rotateValue = document.getElementById('rotateValue');
+
+const toast = document.getElementById('toast');
+const reticle = document.getElementById('reticle');
+
+// ========== 유틸리티 ==========
+function showToast(message, duration = 2500) {
+  toast.textContent = message;
+  toast.style.display = 'block';
+  setTimeout(() => {
+    toast.style.display = 'none';
+  }, duration);
+}
+
+// ========== Three.js 설정 ==========
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.xr.enabled = true;
+document.body.appendChild(renderer.domElement);
+
+// 조명
+const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
+light.position.set(0.5, 1, 0.25);
+scene.add(light);
+
+const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+dirLight.position.set(0, 2, 1);
+scene.add(dirLight);
+
+// 리티클 메쉬
+const reticleMesh = new THREE.Mesh(
+  new THREE.RingGeometry(0.15, 0.2, 32).rotateX(-Math.PI / 2),
+  new THREE.MeshBasicMaterial({ color: 0x00ffff })
+);
+reticleMesh.matrixAutoUpdate = false;
+reticleMesh.visible = false;
+scene.add(reticleMesh);
+
+// ========== DID 모델 생성 ==========
+const placedModels = [];
+let selectedModel = null;
+
+function inchToMeter(inch) {
+  return (inch * 0.0254) * 1.2;
+}
+
+function createDIDModel(type, size, color) {
+  const group = new THREE.Group();
+  const width = inchToMeter(size);
+  const height = width * (9 / 16);
+  const depth = 0.03;
+  
+  // 색상 매핑
+  const colorMap = {
+    black: 0x222222,
+    white: 0xeeeeee,
+    gray: 0x888888
+  };
+  const bodyColor = colorMap[color] || 0x222222;
+  
+  if (type === 'stand') {
+    // 스탠드형 - 화면
+    const screen = new THREE.Mesh(
+      new THREE.BoxGeometry(width, height, depth),
+      new THREE.MeshStandardMaterial({ color: bodyColor, metalness: 0.3, roughness: 0.6 })
+    );
+    screen.position.y = height / 2;
+    group.add(screen);
+    
+    // 디스플레이
+    const display = new THREE.Mesh(
+      new THREE.PlaneGeometry(width * 0.92, height * 0.90),
+      new THREE.MeshBasicMaterial({ color: 0x3366ff })
+    );
+    display.position.set(0, height / 2, depth / 2 + 0.001);
+    group.add(display);
+    
+    // 스탠드 기둥
+    const stand = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.02, 0.03, height * 0.3, 16),
+      new THREE.MeshStandardMaterial({ color: bodyColor, metalness: 0.5, roughness: 0.5 })
+    );
+    stand.position.y = -height * 0.15;
+    group.add(stand);
+    
+    // 받침대
+    const base = new THREE.Mesh(
+      new THREE.CylinderGeometry(width * 0.15, width * 0.18, 0.02, 32),
+      new THREE.MeshStandardMaterial({ color: bodyColor, metalness: 0.5, roughness: 0.5 })
+    );
+    base.position.y = -height * 0.3;
+    group.add(base);
+    
+  } else {
+    // 벽걸이형
+    const screen = new THREE.Mesh(
+      new THREE.BoxGeometry(width, height, depth),
+      new THREE.MeshStandardMaterial({ color: bodyColor, metalness: 0.3, roughness: 0.6 })
+    );
+    screen.position.y = height / 2;
+    group.add(screen);
+    
+    const display = new THREE.Mesh(
+      new THREE.PlaneGeometry(width * 0.92, height * 0.90),
+      new THREE.MeshBasicMaterial({ color: 0x3366ff })
+    );
+    display.position.set(0, height / 2, depth / 2 + 0.001);
+    group.add(display);
+  }
+  
+  group.userData = { type, size, color };
+  return group;
+}
+
+// ========== Hit Test ==========
+let hitTestSource = null;
+let hitTestSourceRequested = false;
+
+function onARSessionStarted(session) {
+  console.log('AR 세션 시작');
+  
+  session.addEventListener('end', () => {
+    console.log('AR 세션 종료');
+    hitTestSourceRequested = false;
+    hitTestSource = null;
+    startOverlay.classList.remove('hidden');
+    topBar.style.display = 'none';
+    fabContainer.style.display = 'none';
+    dirPad.style.display = 'none';
+    reticle.style.opacity = '0';
+    reticle.style.display = 'none';
+  });
+  
+  // UI 전환
+  startOverlay.classList.add('hidden');
+  
+  // 즉시 컨트롤 표시
+  topBar.style.display = 'flex';
+  topBar.style.visibility = 'visible';
+  topBar.style.opacity = '1';
+  
+  fabContainer.style.display = 'flex';
+  fabContainer.style.visibility = 'visible';
+  fabContainer.style.opacity = '1';
+  
+  dirPad.style.display = 'grid';
+  dirPad.style.visibility = 'visible';
+  dirPad.style.opacity = '1';
+  
+  reticle.style.display = 'block';
+  reticle.style.visibility = 'visible';
+  
+  console.log('컨트롤 표시됨');
+  console.log('topBar:', topBar.style.display);
+  console.log('fabContainer:', fabContainer.style.display);
+  console.log('dirPad:', dirPad.style.display);
+  
+  showToast('바닥을 비춰주세요', 3000);
+}
+
+renderer.setAnimationLoop((timestamp, frame) => {
+  if (frame) {
+    const referenceSpace = renderer.xr.getReferenceSpace();
+    const session = renderer.xr.getSession();
+    
+    if (!hitTestSourceRequested) {
+      session.requestReferenceSpace('viewer').then((refSpace) => {
+        session.requestHitTestSource({ space: refSpace }).then((source) => {
+          hitTestSource = source;
+        });
+      });
+      
+      hitTestSourceRequested = true;
+      onARSessionStarted(session);
+    }
+    
+    if (hitTestSource) {
+      const hitTestResults = frame.getHitTestResults(hitTestSource);
+      
+      if (hitTestResults.length > 0) {
+        const hit = hitTestResults[0];
+        const pose = hit.getPose(referenceSpace);
+        
+        reticleMesh.visible = true;
+        reticle.style.opacity = '1';
+        reticle.style.display = 'block';
+        reticleMesh.matrix.fromArray(pose.transform.matrix);
+        
+        console.log('리티클 표시 중');
+      } else {
+        reticleMesh.visible = false;
+        reticle.style.opacity = '0.3';
+      }
+    }
+  }
+  
+  renderer.render(scene, camera);
+});
+
+// ========== 배치 버튼 ==========
+placeBtn.addEventListener('click', () => {
+  if (!reticleMesh.visible) {
+    showToast('⚠️ 바닥을 먼저 인식하세요');
+    return;
+  }
+  
+  const type = mountType.value;
+  const size = parseInt(sizeSelect.value);
+  const color = colorSelect.value;
+  
+  const model = createDIDModel(type, size, color);
+  model.position.setFromMatrixPosition(reticleMesh.matrix);
+  model.quaternion.setFromRotationMatrix(reticleMesh.matrix);
+  
+  // 높이 조정
+  const heightM = parseFloat(heightInput.value) / 100;
+  model.position.y += heightM;
+  
+  scene.add(model);
+  placedModels.push(model);
+  
+  selectedModel = model;
+  selectBtn.style.display = 'block';
+  deleteBtn.style.display = 'block';
+  
+  showToast(`✅ ${type === 'stand' ? '스탠드형' : '벽걸이형'} ${size}" 배치됨`);
+});
+
+// ========== 선택 버튼 ==========
+selectBtn.addEventListener('click', () => {
+  if (placedModels.length === 0) {
+    showToast('배치된 모델이 없습니다');
+    return;
+  }
+  
+  const currentIndex = selectedModel ? placedModels.indexOf(selectedModel) : -1;
+  const nextIndex = (currentIndex + 1) % placedModels.length;
+  selectedModel = placedModels[nextIndex];
+  
+  showToast(`모델 ${nextIndex + 1} 선택됨`);
+});
+
+// ========== 삭제 버튼 ==========
+deleteBtn.addEventListener('click', () => {
+  if (!selectedModel) {
+    showToast('선택된 모델이 없습니다');
+    return;
+  }
+  
+  scene.remove(selectedModel);
+  const index = placedModels.indexOf(selectedModel);
+  if (index > -1) placedModels.splice(index, 1);
+  
+  selectedModel = placedModels.length > 0 ? placedModels[0] : null;
+  
+  if (!selectedModel) {
+    selectBtn.style.display = 'none';
+    deleteBtn.style.display = 'none';
+  }
+  
+  showToast('🗑 모델 삭제됨');
+});
+
+// ========== 방향키 이동 ==========
+const moveDistance = 0.05;
+
+document.getElementById('padUp').addEventListener('click', () => {
+  if (!selectedModel) {showToast('모델을 먼저 선택하세요'); return;}
+  selectedModel.position.z -= moveDistance;
+  showToast('↑ 앞으로 이동');
+});
+
+document.getElementById('padDown').addEventListener('click', () => {
+  if (!selectedModel) {showToast('모델을 먼저 선택하세요'); return;}
+  selectedModel.position.z += moveDistance;
+  showToast('↓ 뒤로 이동');
+});
+
+document.getElementById('padLeft').addEventListener('click', () => {
+  if (!selectedModel) {showToast('모델을 먼저 선택하세요'); return;}
+  selectedModel.position.x -= moveDistance;
+  showToast('← 왼쪽으로 이동');
+});
+
+document.getElementById('padRight').addEventListener('click', () => {
+  if (!selectedModel) {showToast('모델을 먼저 선택하세요'); return;}
+  selectedModel.position.x += moveDistance;
+  showToast('→ 오른쪽으로 이동');
+});
+
+// ========== 회전 슬라이더 ==========
+rotateSlider.addEventListener('input', (e) => {
+  const angle = parseFloat(e.target.value);
+  rotateValue.textContent = angle + '°';
+  
+  if (selectedModel) {
+    selectedModel.rotation.y = THREE.MathUtils.degToRad(angle);
+  }
+});
+
+// ========== 높이 입력 ==========
+heightInput.addEventListener('change', (e) => {
+  if (!selectedModel) return;
+  const heightM = parseFloat(e.target.value) / 100;
+  
+  // 현재 위치에서 높이만 변경
+  const pos = selectedModel.position.clone();
+  const baseY = pos.y - (selectedModel.userData.lastHeight || 0);
+  selectedModel.position.y = baseY + heightM;
+  selectedModel.userData.lastHeight = heightM;
+});
+
+// ========== 속성 변경 ==========
+mountType.addEventListener('change', () => {
+  if (!selectedModel) return;
+  
+  const oldPos = selectedModel.position.clone();
+  const oldRot = selectedModel.rotation.clone();
+  
+  scene.remove(selectedModel);
+  const index = placedModels.indexOf(selectedModel);
+  if (index > -1) placedModels.splice(index, 1);
+  
+  const newModel = createDIDModel(
+    mountType.value,
+    parseInt(sizeSelect.value),
+    colorSelect.value
+  );
+  newModel.position.copy(oldPos);
+  newModel.rotation.copy(oldRot);
+  
+  scene.add(newModel);
+  placedModels.push(newModel);
+  selectedModel = newModel;
+  
+  showToast(`${mountType.value === 'stand' ? '스탠드형' : '벽걸이형'}으로 변경`);
+});
+
+sizeSelect.addEventListener('change', () => {
+  if (!selectedModel) return;
+  
+  const oldPos = selectedModel.position.clone();
+  const oldRot = selectedModel.rotation.clone();
+  
+  scene.remove(selectedModel);
+  const index = placedModels.indexOf(selectedModel);
+  if (index > -1) placedModels.splice(index, 1);
+  
+  const newModel = createDIDModel(
+    mountType.value,
+    parseInt(sizeSelect.value),
+    colorSelect.value
+  );
+  newModel.position.copy(oldPos);
+  newModel.rotation.copy(oldRot);
+  
+  scene.add(newModel);
+  placedModels.push(newModel);
+  selectedModel = newModel;
+  
+  showToast(`${sizeSelect.value}인치로 변경`);
+});
+
+colorSelect.addEventListener('change', () => {
+  if (!selectedModel) return;
+  
+  const oldPos = selectedModel.position.clone();
+  const oldRot = selectedModel.rotation.clone();
+  
+  scene.remove(selectedModel);
+  const index = placedModels.indexOf(selectedModel);
+  if (index > -1) placedModels.splice(index, 1);
+  
+  const newModel = createDIDModel(
+    mountType.value,
+    parseInt(sizeSelect.value),
+    colorSelect.value
+  );
+  newModel.position.copy(oldPos);
+  newModel.rotation.copy(oldRot);
+  
+  scene.add(newModel);
+  placedModels.push(newModel);
+  selectedModel = newModel;
+  
+  const colorName = {black: '블랙', white: '화이트', gray: '그레이'}[colorSelect.value];
+  showToast(`${colorName}으로 변경`);
+});
+
+// ========== 캡처 버튼 ==========
+captureBtn.addEventListener('click', () => {
+  showToast('📸 스크린샷은 기기 버튼을 사용하세요', 3000);
+});
+
+// ========== ARButton ==========
+const arButton = ARButton.createButton(renderer, {
+  requiredFeatures: ['hit-test'],
+  optionalFeatures: []
+});
+
+arButton.id = 'ARButton';
+arButton.textContent = '🚀 AR 시작하기';
+const arButtonContainer = document.getElementById('arButtonContainer');
+arButtonContainer.appendChild(arButton);
+
+// ========== 리사이즈 ==========
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+console.log('DID AR Professional 초기화 완료');
+</script>
+
+</body>
+</html>
